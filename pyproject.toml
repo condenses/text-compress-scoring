@@ -1,14 +1,14 @@
 [tool.hatch.build.targets.wheel]
-packages = ["condenses_node_managing"]
+packages = ["text_compress_scoring"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "subnet-node-managing"
+name = "text-compress-scoring"
 version = "0.1.0"
-description = "Managing & Counting Subnet Nodes (Miners)"
+description = "Scoring for Text Compressing"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -16,20 +16,24 @@ authors = [
     { name = "Your Name", email = "your.email@example.com" }
 ]
 dependencies = [
-    "fastapi",
+    "accelerate>=1.3.0",
+    "datasets>=3.2.0",
+    "fastapi>=0.115.8",
+    "hf-transfer>=0.1.9",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
-    "numpy",
+    "openai>=1.62.0",
+    "pydantic>=2.10.6",
     "pydantic-settings>=2.7.1",
-    "pymongo>=4.11.1",
-    "redis>=5.2.1",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.3",
+    "setuptools>=75.8.0",
+    "tiktoken>=0.8.0",
+    "torch>=2.6.0",
+    "transformers>=4.48.3",
     "uvicorn>=0.34.0",
 ]
 
-[project.urls]
-Homepage = "https://github.com/yourusername/restful-bittensor"
-Repository = "https://github.com/yourusername/restful-bittensor.git"
-
 
 [project.scripts]
-condenses-node-managing-start-server = "condenses_node_managing.server:start_server"
+text-compress-scoring-server = "text_compress_scoring.server:start_server"
