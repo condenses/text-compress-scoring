@@ -1,128 +1,121 @@
-
 <br /><br />
 <div align="center">
-  <h1 align="center">subnet-node-managing</h1>
-  <h4 align="center"> A Python SDK for managing and interacting with Subnet nodes. This SDK provides both synchronous and asynchronous clients for managing miner statistics, rate limits, and score weights.
+  <h1 align="center">text-compress-scoring</h1>
+  <h4 align="center">A Python SDK for scoring text compression.</h4>
 </div>
 
 ## Installation
 
 ```bash
-pip install git+https://github.com/condenses/subnet-node-managing.git
+pip install git+https://github.com/condenses/text-compress-scoring.git
 ```
 
-## Configuration
-
-The SDK can be configured using environment variables:
+## Configuration (Environment Variables)
 
 ```bash
-# Redis configuration
-REDIS__HOST=localhost
-REDIS__PORT=6379
-REDIS__DB=0
+# Reward Model Configuration
+REWARD_MODEL_CONFIG__MODEL_NAME=Skywork/Skywork-Reward-Gemma-2-27B-v0.2
+REWARD_MODEL_CONFIG__TEMPERATURE=1.5
+REWARD_MODEL_CONFIG__COMPRESSION_SCALE=0.2
+REWARD_MODEL_CONFIG__TIKTOKEN_MODEL=gpt-4o
+REWARD_MODEL_CONFIG__REFERENCE_SCORE=0.5
 
-# MongoDB configuration
-MONGO__HOST=localhost
-MONGO__PORT=27017
-MONGO__USERNAME=user  # Optional
-MONGO__PASSWORD=pass  # Optional
+# Prompt Guard Configuration
+PROMPT_GUARD_CONFIG__MODEL_NAME=katanemo/Arch-Guard
+PROMPT_GUARD_CONFIG__DEVICE=cuda
 
-# Rate limiter configuration
-RATE_LIMITER__LIMIT=512
-RATE_LIMITER__INTERVAL=60
-
-# Miner manager configuration
-MINER_MANAGER__SCORE_EMA=0.95
+# Scoring Client Configuration
+SCORING_CLIENT_CONFIG__HOST=0.0.0.0
+SCORING_CLIENT_CONFIG__PORT=9102
+SCORING_CLIENT_CONFIG__TIMEOUT=32.0
 ```
 
 ## Usage
 
-### Synchronous Client
+### Scoring Messages
 
 ```python
-from condenses_node_managing.client import OrchestratorClient
+from text_compress_scoring.schemas import Message, BatchScoringRequest
+from text_compress_scoring.scoring_modeling import ScoringModel
 
-# Initialize the client
-with OrchestratorClient(base_url="http://localhost:8000") as client:
-    # Get stats for a specific miner
-    stats = client.get_stats(uid=1)
-    print(f"Miner stats: {stats}")
+# Initialize the scoring model
+model = ScoringModel()
 
-    # Update miner score
-    result = client.update_stats(uid=1, new_score=0.95)
-    print(f"Update result: {result}")
+# Create messages
+original_messages = [
+    Message(role="user", content="Original message", is_compressed=False)
+]
 
-    # Check rate limits
-    allowed_miners = client.check_rate_limits(
-        uid=None,  # Optional: specific miner ID
-        top_fraction=0.8,  # Top 80% of miners
-        count=5  # Number of miners to return
-    )
-    print(f"Allowed miners: {allowed_miners}")
+compressed_messages = [
+    Message(role="user", content="Compressed version", is_compressed=True)
+]
 
-    # Get score weights for all miners
-    uids, weights = client.get_score_weights()
-    print(f"Miner UIDs: {uids}")
-    print(f"Weights: {weights}")
+# Score single messages
+score = model.score_messages(original_messages)
+
+# Create batch request
+request = BatchScoringRequest(
+    batch_compressed_messages=[compressed_messages],
+    original_messages=original_messages
+)
 ```
 
-### Asynchronous Client
+### Using the Server
 
 ```python
-import asyncio
-from condenses_node_managing.client import AsyncOrchestratorClient
+from text_compress_scoring.server import app
+import uvicorn
 
-async def main():
-    async with AsyncOrchestratorClient(base_url="http://localhost:8000") as client:
-        # Get stats for a specific miner
-        stats = await client.get_stats(uid=1)
-        print(f"Miner stats: {stats}")
-
-        # Update miner score
-        result = await client.update_stats(uid=1, new_score=0.95)
-        print(f"Update result: {result}")
-
-# Run async code
-asyncio.run(main())
+# Start the server
+uvicorn.run(app, host="0.0.0.0", port=9101)
 ```
 
 ## API Reference
 
-### MinerStats Model
+### Message Model
 
 ```python
-class MinerStats:
-    uid: int        # Unique identifier for the miner
-    score: float    # Current score of the miner
-    last_update: float  # Timestamp of last update
+class Message:
+    role: str           # Role of the message sender (e.g., "user")
+    content: str        # Content of the message
+    is_compressed: bool # Whether this is a compressed message
 ```
 
-### OrchestratorClient / AsyncOrchestratorClient Methods
+### Scoring Endpoints
 
-#### get_stats(uid: int) → MinerStats
-Get statistics for a specific miner.
+#### POST /api/scoring
+Score a batch of compressed messages against original messages.
 
-#### update_stats(uid: int, new_score: float) → dict
-Update the score for a specific miner.
+Request body:
+```python
+class BatchScoringRequest:
+    batch_compressed_messages: List[List[Message]]
+    original_messages: List[Message]
+```
 
-#### consume_rate_limits(uid: Optional[int] = None, top_fraction: float = 1.0, count: int = 1) → List[int]
-Consume rate limits for miners. Returns a list of allowed miner UIDs.
-- `uid`: Optional specific miner to check
-- `top_fraction`: Consider only top fraction of miners (0.0 to 1.0)
-- `count`: Number of miners to return
-
-#### get_weights() → Tuple[List[int], List[float]]
-Get weights for all miners. Returns a tuple of (miner_uids, weights).
+Response:
+```python
+class BatchScoringResponse:
+    scores: List[float]
+```
 
 ## Error Handling
 
-The SDK will raise appropriate HTTP exceptions when API calls fail. It's recommended to implement proper error handling:
+The SDK includes built-in error handling for model operations and API requests:
 
 ```python
-from httpx import HTTPError
-
 try:
-    stats = client.get_stats(uid=1)
-except HTTPError as e:
-    print(f"API request failed: {e}")
+    score = model.score_messages(messages)
+except Exception as e:
+    print(f"Scoring failed: {e}")
 ```
+
+## Dependencies
+
+- PyTorch
+- Transformers
+- FastAPI
+- Pydantic
+- Loguru
+
+For a complete list of dependencies, please refer to the pyproject.toml file.

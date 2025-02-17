@@ -26,5 +26,8 @@ class Config(BaseSettings):
     prompt_guard_config: PromptGuardConfig = PromptGuardConfig()
     scoring_client_config: ScoringClientConfig = ScoringClientConfig()
 
+    class Config:
+        env_nested_delimiter = "__"
+
 
 CONFIG = Config()
