@@ -10,9 +10,12 @@ from .config import CONFIG
 
 # Initialize models and clients
 app = FastAPI()
-scoring_model = ScoringModel()
-guarding_model = GuardingModel()
-scoring_prometheus_model = ScoringPrometheusModel()
+if CONFIG.reward_model_config.enabled:
+    scoring_model = ScoringModel()
+if CONFIG.prompt_guard_config.enabled:
+    guarding_model = GuardingModel()
+if CONFIG.prometheus_model_config.enabled:
+    scoring_prometheus_model = ScoringPrometheusModel()
 openai_client = OpenAI()
 
 # Constants
