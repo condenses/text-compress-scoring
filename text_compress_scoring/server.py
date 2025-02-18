@@ -1,55 +1,110 @@
 from fastapi import FastAPI
 import uvicorn
 from typing import List
-from .scoring_modeling import ScoringModel, sigmoid
-from .schemas import (
-    ScoringResponse,
-    BatchScoringRequest,
-    BatchScoringResponse,
-    Message,
-)
 from loguru import logger
+from openai import OpenAI
+
+from .scoring_modeling import ScoringModel, GuardingModel, ScoringPrometheusModel
+from .schemas import BatchScoringRequest, BatchScoringResponse
 from .config import CONFIG
 
+# Initialize models and clients
 app = FastAPI()
 scoring_model = ScoringModel()
+guarding_model = GuardingModel()
+scoring_prometheus_model = ScoringPrometheusModel()
+openai_client = OpenAI()
+
+# Constants
+GENERATE_MODELS = ["meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo-128K"]
+
+logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
 
-def score_single_messages(
-    compressed_messages: List[Message], original_score: float
-) -> ScoringResponse:
-    """Score compressed and original messages"""
-    try:
-        # Check prompt guard for compressed messages
-        for comp_msg in compressed_messages:
-            if comp_msg.is_compressed:
-                if scoring_model.guarding(comp_msg.content):
-                    return ScoringResponse(score=0.0)
-        compressed_score = scoring_model.score_messages(compressed_messages)
-        compress_gain = sigmoid(compressed_score) / sigmoid(original_score)
-        score = CONFIG.reward_model_config.reference_score * compress_gain
-        return score
-    except Exception as e:
-        logger.error(f"Error scoring messages: {e}")
-        return 0.0
+def generate_assistant_message(user_message: str, model: str) -> str:
+    """Generate assistant response using OpenAI API."""
+    logger.debug(f"Generating assistant message using model {model}")
+    logger.debug(f"User message: {user_message[:100]}...")
+
+    response = openai_client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": user_message}],
+    )
+    assistant_message = response.choices[0].message.content
+    logger.debug(f"Generated assistant message: {assistant_message[:100]}...")
+    return assistant_message
+
+
+def get_valid_messages(messages: List[str]) -> List[int]:
+    """Filter messages through prompt guard and return valid indices."""
+    valid_indices = []
+    for i, message in enumerate(messages):
+        logger.debug(f"Checking message {i} through prompt guard")
+        if guarding_model.guard(message):
+            logger.warning(f"Message {i} failed prompt guard check")
+            break
+        valid_indices.append(i)
+        logger.debug(f"Message {i} passed prompt guard check")
+    return valid_indices
+
+
+def calculate_scores(
+    instruction: str, reference_answer: str, responses: List[str]
+) -> List[float]:
+    """Calculate combined scores using Prometheus and reward models."""
+    p_scores = scoring_prometheus_model.score_batch(
+        instruction, reference_answer, responses
+    )
+    logger.info(f"Prometheus scores: {p_scores}")
+
+    r_scores = scoring_model.score_batch(instruction, reference_answer, responses)
+    logger.info(f"Reward scores: {r_scores}")
+
+    return [p_score * r_score for p_score, r_score in zip(p_scores, r_scores)]
 
 
 @app.post("/api/scoring", response_model=BatchScoringResponse)
 def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
-    scores = [0.0] * len(request.batch_compressed_messages)
-    valid_indexes = []
-    for i, single_compressed_messages in enumerate(request.batch_compressed_messages):
-        for comp_msg in single_compressed_messages:
-            if comp_msg.is_compressed and scoring_model.guarding(comp_msg.content):
-                break
-        valid_indexes.append(i)
-    original_score = scoring_model.score_messages(request.original_messages)
-    for i in valid_indexes:
-        scores[i] = score_single_messages(
-            request.batch_compressed_messages[i], original_score
-        )
+    """Handle batch scoring requests."""
+    logger.info(
+        f"Received scoring request with {len(request.batch_compressed_user_messages)} messages to score"
+    )
+
+    scores = [0.0] * len(request.batch_compressed_user_messages)
+    valid_indices = get_valid_messages(request.batch_compressed_user_messages)
+
+    if not valid_indices:
+        logger.warning("No valid messages to score, returning zero scores")
+        return BatchScoringResponse(scores=scores)
+
+    # Generate reference response
+    model = GENERATE_MODELS[0]  # Simplified from random choice since only one model
+    logger.info(f"Using model for generation: {model}")
+
+    original_assistant_message = generate_assistant_message(
+        request.original_user_message, model
+    )
+
+    # Generate responses for valid compressed messages
+    responses = [
+        generate_assistant_message(request.batch_compressed_user_messages[i], model)
+        for i in valid_indices
+    ]
+
+    # Calculate final scores
+    valid_scores = calculate_scores(
+        request.original_user_message, original_assistant_message, responses
+    )
+
+    # Update scores for valid indices
+    for idx, score in zip(valid_indices, valid_scores):
+        scores[idx] = score
+
+    logger.info(f"Completed scoring. Final scores: {scores}")
     return BatchScoringResponse(scores=scores)
 
 
 def start_server():
+    """Start the FastAPI server."""
+    logger.info(f"Starting server on {CONFIG.scoring_host}:{CONFIG.scoring_port}")
     uvicorn.run(app, host=CONFIG.scoring_host, port=CONFIG.scoring_port)
