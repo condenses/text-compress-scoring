@@ -5,7 +5,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from .config import CONFIG
-from prometheus_eval.litellm import Litellm
+from prometheus_eval.litellm import LiteLLM
 from prometheus_eval import PrometheusEval
 from prometheus_eval.prompts import HELPFULNESS_RUBRIC
 
@@ -20,17 +20,17 @@ An instruction (might include an Input inside it), a response to evaluate, a ref
 
 @@@
 ###The instruction to evaluate:
-{orig_instruction}
+{instruction}
 @@@
 
 ###Response to evaluate:
-{orig_response}
+{response}
 
 ###Reference Answer (Score 5):
-{orig_reference_answer}
+{reference_answer}
 
 ###Score Rubrics:
-{score_rubric}
+{rubric}
 
 ###Feedback: """
 
@@ -51,7 +51,7 @@ class RelativeDataPoint(BaseModel):
 
 class ScoringPrometheusModel:
     def __init__(self):
-        self.model = Litellm(
+        self.model = LiteLLM(
             model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
             api_base="https://api.together.xyz/v1",
         )
