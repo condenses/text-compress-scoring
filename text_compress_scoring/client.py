@@ -1,6 +1,6 @@
 from typing import List
 import httpx
-from .schemas import Message, BatchScoringRequest, BatchScoringResponse
+from .schemas import BatchScoringRequest, BatchScoringResponse
 from .config import CONFIG
 
 
@@ -20,7 +20,16 @@ class ScoringClient:
         original_user_message: str,
         batch_compressed_user_messages: List[str],
     ) -> List[float]:
-        """Score a batch of compressed messages against original message"""
+        """Score a batch of compressed messages against original message.
+
+        Args:
+            original_user_message: The original user message to compare against
+            batch_compressed_user_messages: List of compressed messages to score
+
+        Returns:
+            List of scores between 0 and 1, where higher scores indicate better compression.
+            A score of 0 indicates the message failed prompt guard checks.
+        """
         request = BatchScoringRequest(
             original_user_message=original_user_message,
             batch_compressed_user_messages=batch_compressed_user_messages,
@@ -48,7 +57,16 @@ class AsyncScoringClient:
         original_user_message: str,
         batch_compressed_user_messages: List[str],
     ) -> List[float]:
-        """Score a batch of compressed messages against original message"""
+        """Score a batch of compressed messages against original message.
+
+        Args:
+            original_user_message: The original user message to compare against
+            batch_compressed_user_messages: List of compressed messages to score
+
+        Returns:
+            List of scores between 0 and 1, where higher scores indicate better compression.
+            A score of 0 indicates the message failed prompt guard checks.
+        """
         request = BatchScoringRequest(
             original_user_message=original_user_message,
             batch_compressed_user_messages=batch_compressed_user_messages,
