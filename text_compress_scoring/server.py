@@ -124,5 +124,11 @@ def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
 
 def start_server():
     """Start the FastAPI server."""
-    logger.info(f"Starting server on {CONFIG.scoring_host}:{CONFIG.scoring_port}")
-    uvicorn.run(app, host=CONFIG.scoring_host, port=CONFIG.scoring_port)
+    logger.info(
+        f"Starting server on {CONFIG.scoring_client_config.host}:{CONFIG.scoring_client_config.port}"
+    )
+    uvicorn.run(
+        app,
+        host=CONFIG.scoring_client_config.host,
+        port=CONFIG.scoring_client_config.port,
+    )
