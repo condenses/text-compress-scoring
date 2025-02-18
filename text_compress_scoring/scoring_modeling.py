@@ -103,10 +103,10 @@ class ScoringPrometheusModel:
         Returns an integer score between 1 and 5.
         """
         prompt = ABSOLUTE_REFINE_PROMPT.format(
-            instruction=data_point.instruction,
-            response=data_point.response,
-            reference_answer=data_point.reference_answer,
-            rubric=data_point.rubric,
+            INSTRUCTION=data_point.instruction,
+            RESPONSE=data_point.response,
+            REFERENCE_ANSWER=data_point.reference_answer,
+            RUBRIC=data_point.rubric,
         )
         response = self.llm_client.chat.completions.create(
             model=self.model,
