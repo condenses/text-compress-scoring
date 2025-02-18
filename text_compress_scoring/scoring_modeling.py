@@ -5,7 +5,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from .config import CONFIG
-from prometheus_eval.vllm import VLLM
+from prometheus_eval.litellm import Litellm
 from prometheus_eval import PrometheusEval
 from prometheus_eval.prompts import HELPFULNESS_RUBRIC
 
@@ -51,13 +51,12 @@ class RelativeDataPoint(BaseModel):
 
 class ScoringPrometheusModel:
     def __init__(self):
-        self.prometheus_model = VLLM(
-            "prometheus-eval/prometheus-7b-v2.0",
-            gpu_memory_utilization=0.9,
-            max_model_len=4096,
+        self.model = Litellm(
+            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            api_base="https://api.together.xyz/v1",
         )
         self.prometheus_judge = PrometheusEval(
-            model=self.prometheus_model,
+            model=self.model,
             absolute_grade_template=ABSOLUTE_REFINE_PROMPT,
         )
 
