@@ -25,11 +25,11 @@ class ScoringClientConfig(BaseSettings):
 
 class PrometheusModelConfig(BaseSettings):
     enabled: bool = True
-    model_name: str = "mistralai/mistral-small-24b-instruct-2501"
+    model_name: str = "mistralai/Mistral-Small-24B-Instruct-2501"
 
 
 class GenerateModelConfig(BaseSettings):
-    model_name: str = "mistralai/mistral-small-24b-instruct-2501"
+    model_name: str = "mistralai/Mistral-Small-24B-Instruct-2501"
 
 
 class Config(BaseSettings):
