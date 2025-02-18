@@ -52,10 +52,9 @@ class RelativeDataPoint(BaseModel):
 class ScoringPrometheusModel:
     def __init__(self):
         self.prometheus_model = VLLM(
-            "prometheus-eval/prometheus-bgb-8x7b-v2.0",
+            "prometheus-eval/prometheus-7b-v2.0",
             gpu_memory_utilization=0.9,
             max_model_len=8192,
-            quantization="AWQ",
         )
         self.prometheus_judge = PrometheusEval(
             model=self.prometheus_model,
