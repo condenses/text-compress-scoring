@@ -90,10 +90,8 @@ class RelativeDataPoint(BaseModel):
 
 class ScoringPrometheusModel:
     def __init__(self):
-        self.llm_client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-        )
-        self.model = "mistralai/mistral-small-24b-instruct-2501"
+        self.llm_client = OpenAI()
+        self.model = CONFIG.prometheus_model_config.model_name
         self.total_input_tokens = 0
         self.total_output_tokens = 0
 

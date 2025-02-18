@@ -20,12 +20,16 @@ class PromptGuardConfig(BaseSettings):
 class ScoringClientConfig(BaseSettings):
     host: str = "localhost"
     port: int = 9102
-    timeout: float = 32.0
+    timeout: float = 64.0
 
 
 class PrometheusModelConfig(BaseSettings):
     enabled: bool = True
-    model_name: str = "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"
+    model_name: str = "mistralai/mistral-small-24b-instruct-2501"
+
+
+class GenerateModelConfig(BaseSettings):
+    model_name: str = "mistralai/mistral-small-24b-instruct-2501"
 
 
 class Config(BaseSettings):
@@ -33,6 +37,7 @@ class Config(BaseSettings):
     prompt_guard_config: PromptGuardConfig = PromptGuardConfig()
     scoring_client_config: ScoringClientConfig = ScoringClientConfig()
     prometheus_model_config: PrometheusModelConfig = PrometheusModelConfig()
+    generate_model_config: GenerateModelConfig = GenerateModelConfig()
 
     class Config:
         env_nested_delimiter = "__"
