@@ -12,6 +12,7 @@ class RewardModelConfig(BaseSettings):
 
 
 class PromptGuardConfig(BaseSettings):
+    enabled: bool = True
     model_name: str = "katanemo/Arch-Guard"
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
