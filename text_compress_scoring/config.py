@@ -18,7 +18,7 @@ class PromptGuardConfig(BaseSettings):
 
 
 class ScoringClientConfig(BaseSettings):
-    host: str = "0.0.0.0"
+    host: str = "localhost"
     port: int = 9102
     timeout: float = 32.0
 

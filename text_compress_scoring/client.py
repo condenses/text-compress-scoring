@@ -19,6 +19,7 @@ class ScoringClient:
         self,
         original_user_message: str,
         batch_compressed_user_messages: List[str],
+        timeout: float = CONFIG.scoring_client_config.timeout,
     ) -> List[float]:
         """Score a batch of compressed messages against original message.
 
@@ -35,7 +36,9 @@ class ScoringClient:
             batch_compressed_user_messages=batch_compressed_user_messages,
         )
         response = self.client.post(
-            f"{self.base_url}/api/scoring", json=request.model_dump()
+            f"{self.base_url}/api/scoring",
+            json=request.model_dump(),
+            timeout=timeout,
         )
         response.raise_for_status()
         return BatchScoringResponse(**response.json()).scores
@@ -56,6 +59,7 @@ class AsyncScoringClient:
         self,
         original_user_message: str,
         batch_compressed_user_messages: List[str],
+        timeout: float = CONFIG.scoring_client_config.timeout,
     ) -> List[float]:
         """Score a batch of compressed messages against original message.
 
@@ -72,7 +76,9 @@ class AsyncScoringClient:
             batch_compressed_user_messages=batch_compressed_user_messages,
         )
         response = await self.client.post(
-            f"{self.base_url}/api/scoring", json=request.model_dump()
+            f"{self.base_url}/api/scoring",
+            json=request.model_dump(),
+            timeout=timeout,
         )
         response.raise_for_status()
         return BatchScoringResponse(**response.json()).scores

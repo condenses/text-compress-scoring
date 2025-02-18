@@ -17,7 +17,7 @@ TEST_MESSAGES = {
 def test_sync_scoring_client():
     """Test synchronous scoring client"""
     with ScoringClient(
-        f"http://{CONFIG.scoring_client_config.host}:{CONFIG.scoring_client_config.port}"
+        f"http://{CONFIG.scoring_client_config.host}:{CONFIG.scoring_client_config.port}",
     ) as client:
         scores = client.score_batch(
             TEST_MESSAGES["original"], TEST_MESSAGES["compressed"]
@@ -50,7 +50,9 @@ async def test_async_scoring_client():
 @pytest.mark.asyncio
 async def test_async_scoring_client_multiple_requests():
     """Test multiple concurrent requests with async client"""
-    async with AsyncScoringClient(CONFIG.scoring_client_config.host) as client:
+    async with AsyncScoringClient(
+        f"http://{CONFIG.scoring_client_config.host}:{CONFIG.scoring_client_config.port}"
+    ) as client:
         # Create multiple concurrent requests
         tasks = [
             client.score_batch(TEST_MESSAGES["original"], TEST_MESSAGES["compressed"])
