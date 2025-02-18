@@ -52,7 +52,7 @@ class RelativeDataPoint(BaseModel):
 class ScoringPrometheusModel:
     def __init__(self):
         self.model = LiteLLM(
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            name="meta-llama/Llama-3.3-70B-Instruct-Turbo",
             api_base="https://api.together.xyz/v1",
         )
         self.prometheus_judge = PrometheusEval(
