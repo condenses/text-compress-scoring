@@ -3,6 +3,7 @@ import torch
 
 
 class RewardModelConfig(BaseSettings):
+    enabled: bool = False
     model_name: str = "Skywork/Skywork-Reward-Gemma-2-27B-v0.2"
     temperature: float = 1.5
     compression_scale: float = 0.2
@@ -21,10 +22,16 @@ class ScoringClientConfig(BaseSettings):
     timeout: float = 32.0
 
 
+class PrometheusModelConfig(BaseSettings):
+    enabled: bool = True
+    model_name: str = "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+
 class Config(BaseSettings):
     reward_model_config: RewardModelConfig = RewardModelConfig()
     prompt_guard_config: PromptGuardConfig = PromptGuardConfig()
     scoring_client_config: ScoringClientConfig = ScoringClientConfig()
+    prometheus_model_config: PrometheusModelConfig = PrometheusModelConfig()
 
     class Config:
         env_nested_delimiter = "__"

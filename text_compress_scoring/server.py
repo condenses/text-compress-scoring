@@ -51,16 +51,31 @@ def get_valid_messages(messages: List[str]) -> List[int]:
 def calculate_scores(
     instruction: str, reference_answer: str, responses: List[str]
 ) -> List[float]:
-    """Calculate combined scores using Prometheus and reward models."""
-    p_scores = scoring_prometheus_model.score_batch(
-        instruction, reference_answer, responses
-    )
-    logger.info(f"Prometheus scores: {p_scores}")
+    """Calculate combined scores using enabled scoring models."""
+    scores = []
 
-    r_scores = scoring_model.score_batch(instruction, reference_answer, responses)
-    logger.info(f"Reward scores: {r_scores}")
+    if CONFIG.prometheus_model_config.enabled:
+        p_scores = scoring_prometheus_model.score_batch(
+            instruction, reference_answer, responses
+        )
+        logger.info(f"Prometheus scores: {p_scores}")
+        scores.append(p_scores)
 
-    return [p_score * r_score for p_score, r_score in zip(p_scores, r_scores)]
+    if CONFIG.reward_model_config.enabled:
+        r_scores = scoring_model.score_batch(instruction, reference_answer, responses)
+        logger.info(f"Reward scores: {r_scores}")
+        scores.append(r_scores)
+
+    if not scores:
+        raise ValueError("No scoring models are enabled")
+
+    # Multiply scores from all enabled models together
+    final_scores = [1.0] * len(responses)
+    for score_list in scores:
+        for i, score in enumerate(score_list):
+            final_scores[i] *= score
+
+    return final_scores
 
 
 @app.post("/api/scoring", response_model=BatchScoringResponse)
