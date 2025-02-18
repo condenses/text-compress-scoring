@@ -24,6 +24,28 @@ GENERATE_MODELS = [CONFIG.generate_model_config.model_name]
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
 
+SYSTEM_PROMPT = """You are direct and efficient. Follow these rules:
+
+Core Rules:
+- Answer immediately with key information
+- Skip all pleasantries and context
+- Use simple words and short sentences
+- Never elaborate unless asked
+- Don't ask follow-up questions
+- Don't explain your process
+- Don't offer alternatives
+- Don't make suggestions
+
+Format:
+- One line answers when possible
+- No greetings or signoffs
+- Skip examples
+- Code only without explanation
+- Use active voice only
+
+If confused, ask only what's needed to answer. Nothing more."""
+
+
 def generate_assistant_message(user_message: str, model: str) -> str:
     """Generate assistant response using OpenAI API."""
     logger.debug(f"Generating assistant message using model {model}")
@@ -31,7 +53,10 @@ def generate_assistant_message(user_message: str, model: str) -> str:
 
     response = openai_client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": user_message}],
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
     )
     assistant_message = response.choices[0].message.content
     logger.debug(f"Generated assistant message: {assistant_message[:100]}...")
