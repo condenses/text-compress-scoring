@@ -16,10 +16,12 @@ if CONFIG.prompt_guard_config.enabled:
     guarding_model = GuardingModel()
 if CONFIG.prometheus_model_config.enabled:
     scoring_prometheus_model = ScoringPrometheusModel()
-openai_client = OpenAI()
+openai_client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+)
 
 # Constants
-GENERATE_MODELS = ["meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo-128K"]
+GENERATE_MODELS = ["perplexity/llama-3.1-sonar-small-128k-chat"]
 
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
