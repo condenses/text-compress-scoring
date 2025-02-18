@@ -54,7 +54,7 @@ class ScoringPrometheusModel:
         self.prometheus_model = VLLM(
             "prometheus-eval/prometheus-7b-v2.0",
             gpu_memory_utilization=0.9,
-            max_model_len=8192,
+            max_model_len=4096,
         )
         self.prometheus_judge = PrometheusEval(
             model=self.prometheus_model,
