@@ -5,7 +5,7 @@ import torch
 class RewardModelConfig(BaseSettings):
     enabled: bool = False
     model_name: str = "Skywork/Skywork-Reward-Gemma-2-27B-v0.2"
-    temperature: float = 1.5
+    temperature: float = 0.01
     compression_scale: float = 0.2
     tiktoken_model: str = "gpt-4o"
     reference_score: float = 0.5
@@ -26,10 +26,12 @@ class ScoringClientConfig(BaseSettings):
 class PrometheusModelConfig(BaseSettings):
     enabled: bool = True
     model_name: str = "mistralai/Mistral-Small-24B-Instruct-2501"
+    temperature: float = 0.01
 
 
 class GenerateModelConfig(BaseSettings):
     model_name: str = "mistralai/Mistral-Small-24B-Instruct-2501"
+    temperature: float = 0.01
 
 
 class Config(BaseSettings):

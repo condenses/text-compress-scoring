@@ -40,6 +40,7 @@ def generate_assistant_message(user_message: str, model: str) -> str:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
+        temperature=CONFIG.generate_model_config.temperature,
     )
     assistant_message = response.choices[0].message.content
     logger.debug(f"Generated assistant message: {assistant_message[:100]}...")

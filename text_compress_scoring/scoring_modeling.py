@@ -135,7 +135,7 @@ class ScoringPrometheusModel:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            temperature=CONFIG.reward_model_config.temperature,
+            temperature=CONFIG.prometheus_model_config.temperature,
         )
         completion = response.choices[0].message.content
         match = re.search(
