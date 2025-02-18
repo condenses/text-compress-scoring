@@ -9,6 +9,29 @@ import re
 
 from .config import CONFIG
 
+
+SYSTEM_PROMPT = """You are direct and efficient. Follow these rules:
+
+Core Rules:
+- Answer immediately with key information
+- Skip all pleasantries and context
+- Use simple words and short sentences
+- Never elaborate unless asked
+- Don't ask follow-up questions
+- Don't explain your process
+- Don't offer alternatives
+- Don't make suggestions
+
+Format:
+- One line answers when possible
+- No greetings or signoffs
+- Skip examples
+- Code only without explanation
+- Use active voice only
+
+If confused, ask only what's needed to answer. Nothing more."""
+
+
 # Corrected prompt name and content.
 ABSOLUTE_REFINE_PROMPT = """You are an expert evaluator tasked with assessing the quality of a response based on a specific scoring rubric. Your goal is to provide concise feedback and assign a score that accurately reflects the response's quality.
 
@@ -108,7 +131,10 @@ class ScoringPrometheusModel:
         )
         response = self.llm_client.chat.completions.create(
             model=self.model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
             temperature=CONFIG.reward_model_config.temperature,
         )
         completion = response.choices[0].message.content

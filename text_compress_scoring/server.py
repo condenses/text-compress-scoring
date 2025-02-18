@@ -4,7 +4,12 @@ from typing import List
 from loguru import logger
 from openai import OpenAI
 
-from .scoring_modeling import ScoringModel, GuardingModel, ScoringPrometheusModel
+from .scoring_modeling import (
+    ScoringModel,
+    GuardingModel,
+    ScoringPrometheusModel,
+    SYSTEM_PROMPT,
+)
 from .schemas import BatchScoringRequest, BatchScoringResponse
 from .config import CONFIG
 
@@ -22,28 +27,6 @@ openai_client = OpenAI()
 GENERATE_MODELS = [CONFIG.generate_model_config.model_name]
 
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
-
-
-SYSTEM_PROMPT = """You are direct and efficient. Follow these rules:
-
-Core Rules:
-- Answer immediately with key information
-- Skip all pleasantries and context
-- Use simple words and short sentences
-- Never elaborate unless asked
-- Don't ask follow-up questions
-- Don't explain your process
-- Don't offer alternatives
-- Don't make suggestions
-
-Format:
-- One line answers when possible
-- No greetings or signoffs
-- Skip examples
-- Code only without explanation
-- Use active voice only
-
-If confused, ask only what's needed to answer. Nothing more."""
 
 
 def generate_assistant_message(user_message: str, model: str) -> str:
