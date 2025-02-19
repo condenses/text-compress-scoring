@@ -91,7 +91,7 @@ if __name__ == "__main__":
     compressed_msgs = ["Hi", "Hello"]
 
     # Synchronous usage
-    with ScoringClient(CONFIG.scoring_client_config.host) as client:
+    with ScoringClient(CONFIG.scoring_client_config.base_url) as client:
         scores = client.score_batch(original_msg, compressed_msgs)
         print(f"Compression scores: {scores}")
 
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     import asyncio
 
     async def main():
-        async with AsyncScoringClient(CONFIG.scoring_client_config.host) as client:
+        async with AsyncScoringClient(CONFIG.scoring_client_config.base_url) as client:
             scores = await client.score_batch(original_msg, compressed_msgs)
             print(f"Compression scores: {scores}")
 

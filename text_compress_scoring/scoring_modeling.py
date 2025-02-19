@@ -1,12 +1,9 @@
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
-import torch
 import numpy as np
 from loguru import logger
 from pydantic import BaseModel
 from openai import OpenAI
-import tiktoken
 import re
-
+from transformers import pipeline
 from .config import CONFIG
 
 
@@ -89,19 +86,46 @@ Please proceed with your evaluation based on these instructions."""
 
 HELPFULNESS_RUBRIC = """
 [Does the model provide relevant and useful responses to the user's needs or questions?]
-Score 1: The model's responses are irrelevant or unhelpful to the user's needs or queries.
-Score 2: The model sometimes provides helpful information, but often fails to address the user's actual needs or questions.
-Score 3: The model generally provides helpful responses that address the user's needs, though it may occasionally miss the mark.
-Score 4: The model regularly provides helpful responses that are well-aligned with the user's inquiries, with only rare inaccuracies.
-Score 5: The model consistently offers highly relevant and useful responses that perfectly cater to the user's needs and inquiries.
+
+Score 1:
+- Responses are completely off-topic or irrelevant
+- Fails to understand or address the user's basic query
+- Provides incorrect or misleading information
+- May be harmful or counterproductive to user's needs
+- Shows no evidence of understanding the context
+
+Score 2:
+- Responses are partially relevant but mostly miss the mark
+- Addresses surface-level aspects while missing core needs
+- Contains significant gaps or inaccuracies
+- Requires substantial follow-up questions for clarity
+- Shows limited understanding of user context
+
+Score 3:
+- Responses are generally on-topic and helpful
+- Addresses main points but may miss some details
+- Information is mostly accurate with minor gaps
+- May need occasional clarification
+- Demonstrates basic understanding of context
+- Solutions are workable but not optimal
+
+Score 4:
+- Responses are well-aligned with user needs
+- Addresses both main points and important details
+- Information is accurate and well-structured
+- Requires minimal clarification
+- Shows good understanding of context
+- Provides effective, practical solutions
+
+Score 5:
+- Responses perfectly match user needs and context
+- Addresses all aspects comprehensively
+- Information is completely accurate and thorough
+- Requires no clarification or follow-up
+- Demonstrates deep understanding of context
+- Provides optimal, actionable solutions
+- Anticipates potential issues or edge cases
 """.strip()
-
-
-def sigmoid(
-    x: float, temperature: float = CONFIG.reward_model_config.temperature
-) -> float:
-    """Apply sigmoid function with temperature scaling."""
-    return 1 / (1 + np.exp(-x / temperature))
 
 
 class RelativeDataPoint(BaseModel):
@@ -111,16 +135,18 @@ class RelativeDataPoint(BaseModel):
     rubric: str = HELPFULNESS_RUBRIC
 
 
-class ScoringPrometheusModel:
+class LLMPreferenceModel:
     def __init__(self):
-        self.llm_client = OpenAI()
-        self.model = CONFIG.prometheus_model_config.model_name
+        self.llm_client = OpenAI(
+            base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
+        )
+        self.model = CONFIG.vllm_config.model_name
         self.total_input_tokens = 0
         self.total_output_tokens = 0
 
     def single_absolute_grade(self, data_point: RelativeDataPoint) -> int:
         """
-        Compute the absolute grade for a single data point using the Prometheus model.
+        Compute the absolute grade for a single data point using the vLLM model.
         Returns an integer score between 1 and 5.
         """
         prompt = ABSOLUTE_REFINE_PROMPT.format(
@@ -135,7 +161,7 @@ class ScoringPrometheusModel:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            temperature=CONFIG.prometheus_model_config.temperature,
+            temperature=CONFIG.vllm_config.temperature,
         )
         completion = response.choices[0].message.content
         match = re.search(
@@ -197,72 +223,3 @@ class GuardingModel:
         result = self.prompt_guard(prompt)
         logger.info(f"Prompt guard result: {result} | prompt: {prompt[:32]}...")
         return result[0]["label"] == "JAILBREAK"
-
-
-class ScoringModel:
-    def __init__(self):
-        model_name = CONFIG.reward_model_config.model_name
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            model_name,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-            attn_implementation="flash_attention_2",
-            num_labels=1,
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    @torch.no_grad()
-    def _score_message_pair(self, instruction: str, message: str) -> float:
-        """
-        Helper method: Score a single (instruction, message) pair.
-        Returns the raw logit score.
-        """
-        messages = [
-            {"role": "user", "content": instruction},
-            {"role": "assistant", "content": message},
-        ]
-        tokenized = self.tokenizer.apply_chat_template(
-            messages, tokenize=True, return_tensors="pt"
-        )
-        tokenized = {k: v.to(self.device) for k, v in tokenized.items()}
-        logits = self.model(**tokenized).logits
-        return logits[0][0].item()
-
-    @torch.no_grad()
-    def score_batch(
-        self, instruction: str, reference_answer: str, responses: list[str]
-    ) -> list[float]:
-        """
-        Score a batch of responses relative to the reference answer.
-        The score is normalized using a sigmoid transformation.
-        """
-        # Compute the reference score once.
-        ref_score = self._score_message_pair(instruction, reference_answer)
-
-        # Prepare a batch of message pairs for all responses.
-        batch_messages = [
-            [
-                {"role": "user", "content": instruction},
-                {"role": "assistant", "content": response},
-            ]
-            for response in responses
-        ]
-
-        # Batch tokenization: assumes the tokenizer supports batching.
-        tokenized_batch = self.tokenizer.apply_chat_template(
-            batch_messages,
-            tokenize=True,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-        )
-        tokenized_batch = {k: v.to(self.device) for k, v in tokenized_batch.items()}
-        logits = self.model(**tokenized_batch).logits
-        # Squeeze the logits to shape (batch_size,)
-        response_scores = logits.squeeze(dim=1).tolist()
-
-        normalized_scores = [
-            sigmoid(score) / sigmoid(ref_score) for score in response_scores
-        ]
-        return normalized_scores

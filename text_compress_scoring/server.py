@@ -5,27 +5,20 @@ from loguru import logger
 from openai import OpenAI
 
 from .scoring_modeling import (
-    ScoringModel,
-    GuardingModel,
-    ScoringPrometheusModel,
+    LLMPreferenceModel,
     SYSTEM_PROMPT,
+    GuardingModel,
 )
 from .schemas import BatchScoringRequest, BatchScoringResponse
 from .config import CONFIG
 
 # Initialize models and clients
 app = FastAPI()
-if CONFIG.reward_model_config.enabled:
-    scoring_model = ScoringModel()
-if CONFIG.prompt_guard_config.enabled:
-    guarding_model = GuardingModel()
-if CONFIG.prometheus_model_config.enabled:
-    scoring_prometheus_model = ScoringPrometheusModel()
-openai_client = OpenAI()
-
-# Constants
-GENERATE_MODELS = [CONFIG.generate_model_config.model_name]
-
+preference_score = LLMPreferenceModel()
+openai_client = OpenAI(
+    base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
+)
+guarding_model = GuardingModel()
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
 
@@ -40,7 +33,9 @@ def generate_assistant_message(user_message: str, model: str) -> str:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
-        temperature=CONFIG.generate_model_config.temperature,
+        temperature=CONFIG.vllm_config.temperature,
+        top_p=CONFIG.vllm_config.top_p,
+        max_completion_tokens=CONFIG.vllm_config.max_new_tokens,
     )
     assistant_message = response.choices[0].message.content
     logger.debug(f"Generated assistant message: {assistant_message[:100]}...")
@@ -64,30 +59,9 @@ def calculate_scores(
     instruction: str, reference_answer: str, responses: List[str]
 ) -> List[float]:
     """Calculate combined scores using enabled scoring models."""
-    scores = []
-
-    if CONFIG.prometheus_model_config.enabled:
-        p_scores = scoring_prometheus_model.score_batch(
-            instruction, reference_answer, responses
-        )
-        logger.info(f"Prometheus scores: {p_scores}")
-        scores.append(p_scores)
-
-    if CONFIG.reward_model_config.enabled:
-        r_scores = scoring_model.score_batch(instruction, reference_answer, responses)
-        logger.info(f"Reward scores: {r_scores}")
-        scores.append(r_scores)
-
-    if not scores:
-        raise ValueError("No scoring models are enabled")
-
-    # Multiply scores from all enabled models together
-    final_scores = [1.0] * len(responses)
-    for score_list in scores:
-        for i, score in enumerate(score_list):
-            final_scores[i] *= score
-
-    return final_scores
+    scores = preference_score.score_batch(instruction, reference_answer, responses)
+    logger.info(f"Preference scores: {scores}")
+    return scores
 
 
 @app.post("/api/scoring", response_model=BatchScoringResponse)
@@ -105,16 +79,17 @@ def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
         return BatchScoringResponse(scores=scores)
 
     # Generate reference response
-    model = GENERATE_MODELS[0]  # Simplified from random choice since only one model
-    logger.info(f"Using model for generation: {model}")
+    logger.info(f"Using model for generation: {CONFIG.vllm_config.model_name}")
 
     original_assistant_message = generate_assistant_message(
-        request.original_user_message, model
+        request.original_user_message, CONFIG.vllm_config.model_name
     )
 
     # Generate responses for valid compressed messages
     responses = [
-        generate_assistant_message(request.batch_compressed_user_messages[i], model)
+        generate_assistant_message(
+            request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
+        )
         for i in valid_indices
     ]
 
@@ -133,9 +108,7 @@ def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
 
 def start_server():
     """Start the FastAPI server."""
-    logger.info(
-        f"Starting server on {CONFIG.scoring_client_config.host}:{CONFIG.scoring_client_config.port}"
-    )
+    logger.info(f"Starting server on {CONFIG.scoring_client_config.base_url}")
     uvicorn.run(
         app,
         host=CONFIG.scoring_client_config.host,
