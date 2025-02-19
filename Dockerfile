@@ -6,12 +6,12 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY pyproject.toml .
 COPY README.md .
-COPY condenses_node_managing ./condenses_node_managing
+COPY text_compress_scoring ./text_compress_scoring
 RUN pip install --upgrade pip && \
     pip install uv && \
     uv venv && . .venv/bin/activate && \
     uv sync --prerelease=allow
 
 ENV PATH=/app/.venv/bin:$PATH
-EXPOSE 9101
-CMD ["condenses-node-managing-start-server"]
+EXPOSE 9102
+CMD ["text-compress-scoring-server"]
