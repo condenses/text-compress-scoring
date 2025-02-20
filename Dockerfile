@@ -13,5 +13,4 @@ RUN pip install --upgrade pip && \
     uv sync --prerelease=allow
 
 ENV PATH=/app/.venv/bin:$PATH
-EXPOSE 9102
 CMD ["text-compress-scoring-server"]
