@@ -43,7 +43,6 @@ class NineteenAPI(OpenAI):
 
 # Initialize models and clients
 app = FastAPI()
-preference_score = LLMPreferenceModel()
 if CONFIG.use_nineteen_api:
     openai_client = NineteenAPI(
         base_url="https://api.nineteen.ai/v1",
@@ -53,6 +52,7 @@ else:
     openai_client = OpenAI(
         base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
     )
+preference_score = LLMPreferenceModel(openai_client)
 guarding_model = GuardingModel()
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
