@@ -80,7 +80,7 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
         except Exception as exc:
-            logger.exception("Unhandled exception occurred")
+            logger.error(f"Unhandled exception occurred: {str(exc)}")
             return JSONResponse(
                 status_code=HTTP_500_INTERNAL_SERVER_ERROR,
                 content={"detail": "Internal Server Error"},
