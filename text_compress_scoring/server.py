@@ -4,6 +4,13 @@ from typing import List
 from loguru import logger
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
 from .scoring_modeling import (
     LLMPreferenceModel,
@@ -57,6 +64,29 @@ preference_score = LLMPreferenceModel(openai_client)
 guarding_model = GuardingModel()
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
+# Add CORS middleware if needed
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add middleware to handle exceptions
+class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        try:
+            response = await call_next(request)
+            return response
+        except Exception as exc:
+            logger.exception("Unhandled exception occurred")
+            return JSONResponse(
+                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"detail": "Internal Server Error"},
+            )
+
+app.add_middleware(ExceptionLoggingMiddleware)
 
 def generate_assistant_message(user_message: str, model: str) -> str:
     """Generate assistant response using OpenAI API."""
@@ -103,44 +133,49 @@ def calculate_scores(
 @app.post("/api/scoring", response_model=BatchScoringResponse)
 def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
     """Handle batch scoring requests."""
-    logger.info(
-        f"Received scoring request with {len(request.batch_compressed_user_messages)} messages to score"
-    )
+    try:
+        logger.info(
+            f"Received scoring request with {len(request.batch_compressed_user_messages)} messages to score"
+        )
 
-    scores = [0.0] * len(request.batch_compressed_user_messages)
-    valid_indices = get_valid_messages(request.batch_compressed_user_messages)
+        scores = [0.0] * len(request.batch_compressed_user_messages)
+        valid_indices = get_valid_messages(request.batch_compressed_user_messages)
 
-    if not valid_indices:
-        logger.warning("No valid messages to score, returning zero scores")
+        if not valid_indices:
+            logger.warning("No valid messages to score, returning zero scores")
+            return BatchScoringResponse(scores=scores)
+
+        # Generate reference response
+        logger.info(f"Using model for generation: {CONFIG.vllm_config.model_name}")
+
+        original_assistant_message = generate_assistant_message(
+            request.original_user_message, CONFIG.vllm_config.model_name
+        )
+
+        # Generate responses for valid compressed messages
+        with ThreadPoolExecutor() as executor:
+            responses = list(executor.map(
+                lambda i: generate_assistant_message(
+                    request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
+                ),
+                valid_indices
+            ))
+
+        # Calculate final scores
+        valid_scores = calculate_scores(
+            request.original_user_message, original_assistant_message, responses
+        )
+
+        # Update scores for valid indices
+        for idx, score in zip(valid_indices, valid_scores):
+            scores[idx] = score
+
+        logger.info(f"Completed scoring. Final scores: {scores}")
         return BatchScoringResponse(scores=scores)
 
-    # Generate reference response
-    logger.info(f"Using model for generation: {CONFIG.vllm_config.model_name}")
-
-    original_assistant_message = generate_assistant_message(
-        request.original_user_message, CONFIG.vllm_config.model_name
-    )
-
-    # Generate responses for valid compressed messages
-    with ThreadPoolExecutor() as executor:
-        responses = list(executor.map(
-            lambda i: generate_assistant_message(
-                request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
-            ),
-            valid_indices
-        ))
-
-    # Calculate final scores
-    valid_scores = calculate_scores(
-        request.original_user_message, original_assistant_message, responses
-    )
-
-    # Update scores for valid indices
-    for idx, score in zip(valid_indices, valid_scores):
-        scores[idx] = score
-
-    logger.info(f"Completed scoring. Final scores: {scores}")
-    return BatchScoringResponse(scores=scores)
+    except Exception as e:
+        logger.exception("Exception occurred during scoring")
+        raise e
 
 
 def start_server():
