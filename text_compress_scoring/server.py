@@ -3,6 +3,7 @@ import uvicorn
 from typing import List
 from loguru import logger
 from openai import OpenAI
+from concurrent.futures import ThreadPoolExecutor
 
 from .scoring_modeling import (
     LLMPreferenceModel,
@@ -121,12 +122,13 @@ def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
     )
 
     # Generate responses for valid compressed messages
-    responses = [
-        generate_assistant_message(
-            request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
-        )
-        for i in valid_indices
-    ]
+    with ThreadPoolExecutor() as executor:
+        responses = list(executor.map(
+            lambda i: generate_assistant_message(
+                request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
+            ),
+            valid_indices
+        ))
 
     # Calculate final scores
     valid_scores = calculate_scores(
