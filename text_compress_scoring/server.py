@@ -13,7 +13,6 @@ from .schemas import BatchScoringRequest, BatchScoringResponse
 from .config import CONFIG
 import bittensor as bt
 import time
-from typing import override
 
 
 WALLET = bt.Wallet(
@@ -39,7 +38,6 @@ def get_signature_headers() -> dict:
 class NineteenAPI(OpenAI):
 
     @property
-    @override
     def auth_headers(self) -> dict:
         return get_signature_headers()
 
