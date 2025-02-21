@@ -6,6 +6,9 @@ class PromptGuardConfig(BaseSettings):
     model_name: str = "katanemo/Arch-Guard"
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
+    class Config:
+        extra = "ignore"
+
 
 class ScoringClientConfig(BaseSettings):
     host: str = "0.0.0.0"
@@ -15,6 +18,9 @@ class ScoringClientConfig(BaseSettings):
     @property
     def base_url(self) -> str:
         return f"http://{self.host}:{self.port}"
+    
+    class Config:
+        extra = "ignore"
 
 
 class vLLMConfig(BaseSettings):
@@ -29,6 +35,8 @@ class vLLMConfig(BaseSettings):
     max_new_tokens: int = 1024
     api_key: str = "sk-proj-1234567890"
 
+    class Config:
+        extra = "ignore"
 
 class Config(BaseSettings):
     vllm_config: vLLMConfig = vLLMConfig()
@@ -37,6 +45,23 @@ class Config(BaseSettings):
 
     class Config:
         env_nested_delimiter = "__"
+        env_file = ".env"
+        extra = "ignore"
 
 
 CONFIG = Config()
+
+from rich.console import Console
+from rich.panel import Panel
+
+console = Console()
+settings_dict = CONFIG.model_dump()
+
+for section, values in settings_dict.items():
+    console.print(
+        Panel.fit(
+            str(values),
+            title=f"[bold blue]{section}[/bold blue]",
+            border_style="green",
+        )
+    )
