@@ -136,10 +136,8 @@ class RelativeDataPoint(BaseModel):
 
 
 class LLMPreferenceModel:
-    def __init__(self):
-        self.llm_client = OpenAI(
-            base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
-        )
+    def __init__(self, openai_client: OpenAI):
+        self.llm_client = openai_client
         self.model = CONFIG.vllm_config.model_name
         self.total_input_tokens = 0
         self.total_output_tokens = 0

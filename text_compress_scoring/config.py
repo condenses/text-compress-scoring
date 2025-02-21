@@ -42,6 +42,10 @@ class Config(BaseSettings):
     vllm_config: vLLMConfig = vLLMConfig()
     scoring_client_config: ScoringClientConfig = ScoringClientConfig()
     prompt_guard_config: PromptGuardConfig = PromptGuardConfig()
+    wallet_name: str = "default"
+    wallet_path: str = "~/.bittensor/wallets"
+    wallet_hotkey: str = "default"
+    use_nineteen_api: bool = False
 
     class Config:
         env_nested_delimiter = "__"

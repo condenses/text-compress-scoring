@@ -11,13 +11,50 @@ from .scoring_modeling import (
 )
 from .schemas import BatchScoringRequest, BatchScoringResponse
 from .config import CONFIG
+import bittensor as bt
+import time
+from typing import override
+
+
+WALLET = bt.Wallet(
+    name=CONFIG.wallet_name,
+    path=CONFIG.wallet_path,
+    hotkey=CONFIG.wallet_hotkey,
+)
+
+def get_signature_headers() -> dict:
+    """
+    Get the signature headers for the validator.
+    """
+    nonce = str(time.time_ns())
+    signature = f"0x{WALLET.hotkey.sign(nonce).hex()}"
+    return {
+        "validator-hotkey": WALLET.hotkey.ss58_address,
+        "signature": signature,
+        "nonce": nonce,
+        "netuid": "47",
+        "Content-Type": "application/json",
+    }
+
+class NineteenAPI(OpenAI):
+
+    @property
+    @override
+    def auth_headers(self) -> dict:
+        return get_signature_headers()
 
 # Initialize models and clients
 app = FastAPI()
 preference_score = LLMPreferenceModel()
-openai_client = OpenAI(
-    base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
-)
+if CONFIG.use_nineteen_api:
+    openai_client = NineteenAPI(
+        base_url="https://api.nineteen.ai/v1",
+        api_key="abc"
+    )
+else:
+    openai_client = OpenAI(
+        base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
+    )
 guarding_model = GuardingModel()
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
