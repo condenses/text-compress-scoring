@@ -5,7 +5,7 @@ from openai import OpenAI
 import re
 from transformers import pipeline
 from .config import CONFIG
-
+import torch
 
 SYSTEM_PROMPT = """You are direct and efficient. Follow these rules:
 
@@ -213,6 +213,7 @@ class GuardingModel:
             device=CONFIG.prompt_guard_config.device,  # Use 'device' if supported
         )
 
+    @torch.no_grad()
     def guard(self, prompt: str) -> bool:
         """
         Evaluate a prompt with the text-classification pipeline.
