@@ -220,6 +220,10 @@ class GuardingModel:
         Evaluate a prompt with the text-classification pipeline.
         Returns True if the prompt is classified as a "JAILBREAK".
         """
-        result = self.prompt_guard(prompt)
-        logger.info(f"Prompt guard result: {result} | prompt: {prompt[:32]}...")
-        return result[0]["label"] == "JAILBREAK"
+        try:
+            result = self.prompt_guard(prompt)
+            logger.info(f"Prompt guard result: {result} | prompt: {prompt[:32]}...")
+            return result[0]["label"] == "JAILBREAK"
+        except Exception as e:
+            logger.error(f"Error in prompt guard: {e}")
+            return True
