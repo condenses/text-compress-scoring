@@ -3,7 +3,6 @@ import uvicorn
 from typing import List
 from loguru import logger
 from openai import OpenAI
-from concurrent.futures import ThreadPoolExecutor
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
