@@ -46,6 +46,9 @@ class Config(BaseSettings):
     wallet_path: str = "~/.bittensor/wallets"
     wallet_hotkey: str = "default"
     use_nineteen_api: bool = False
+    
+    if use_nineteen_api:
+        vllm_config.model_name = "chat-llama-3-1-70b"
 
     class Config:
         env_nested_delimiter = "__"
