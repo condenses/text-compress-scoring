@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 import torch
+from pydantic import model_validator
 
 
 class PromptGuardConfig(BaseSettings):
@@ -46,9 +47,12 @@ class Config(BaseSettings):
     wallet_path: str = "~/.bittensor/wallets"
     wallet_hotkey: str = "default"
     use_nineteen_api: bool = False
-    
-    if use_nineteen_api:
-        vllm_config.model_name = "chat-llama-3-1-70b"
+
+    @model_validator(mode='after')
+    def update_model_name(self) -> 'Config':
+        if self.use_nineteen_api:
+            self.vllm_config.model_name = "chat-llama-3-1-70b"
+        return self
 
     class Config:
         env_nested_delimiter = "__"

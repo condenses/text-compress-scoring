@@ -73,21 +73,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add middleware to handle exceptions
-class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        try:
-            response = await call_next(request)
-            return response
-        except Exception as exc:
-            logger.error(f"Unhandled exception occurred: {str(exc)}")
-            return JSONResponse(
-                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"detail": "Internal Server Error"},
-            )
-
-app.add_middleware(ExceptionLoggingMiddleware)
-
 
 @retry(max_retries=3, retry_delay=5)
 def generate_assistant_message(user_message: str, model: str) -> str:
