@@ -156,13 +156,12 @@ def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
         )
 
         # Generate responses for valid compressed messages
-        with ThreadPoolExecutor() as executor:
-            responses = list(executor.map(
-                lambda i: generate_assistant_message(
-                    request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
-                ),
-                valid_indices
-            ))
+        responses = []
+        for i in valid_indices:
+            response = generate_assistant_message(
+                request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
+            )
+            responses.append(response)
 
         # Calculate final scores
         valid_scores = calculate_scores(
