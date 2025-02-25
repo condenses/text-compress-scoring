@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
+from .utils import retry
 
 from .scoring_modeling import (
     LLMPreferenceModel,
@@ -88,6 +89,8 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(ExceptionLoggingMiddleware)
 
+
+@retry(max_retries=3, retry_delay=5)
 def generate_assistant_message(user_message: str, model: str) -> str:
     """Generate assistant response using OpenAI API."""
     logger.debug(f"Generating assistant message using model {model}")

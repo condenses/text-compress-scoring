@@ -6,7 +6,7 @@ import re
 from transformers import pipeline
 from .config import CONFIG
 import torch
-
+from .utils import retry
 SYSTEM_PROMPT = """You are direct and efficient. Follow these rules:
 
 Core Rules:
@@ -142,6 +142,7 @@ class LLMPreferenceModel:
         self.total_input_tokens = 0
         self.total_output_tokens = 0
 
+    @retry(max_retries=3, retry_delay=5)
     def single_absolute_grade(self, data_point: RelativeDataPoint) -> int:
         """
         Compute the absolute grade for a single data point using the vLLM model.
