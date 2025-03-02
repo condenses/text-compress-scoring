@@ -19,7 +19,7 @@ class ScoringClientConfig(BaseSettings):
     @property
     def base_url(self) -> str:
         return f"http://{self.host}:{self.port}"
-    
+
     class Config:
         extra = "ignore"
 
@@ -27,7 +27,7 @@ class ScoringClientConfig(BaseSettings):
 class vLLMConfig(BaseSettings):
     base_url: str = "http://localhost:8080"
     timeout: float = 128.0
-    model_name: str = "mistralai/Mistral-Small-24B-Instruct-2501"
+    model_name: str = "meta-llama/Llama-3.1-8B-Instruct"
     temperature: float = 0.01
     max_tokens: int = 1024
     top_p: float = 0.9
@@ -39,6 +39,7 @@ class vLLMConfig(BaseSettings):
     class Config:
         extra = "ignore"
 
+
 class Config(BaseSettings):
     vllm_config: vLLMConfig = vLLMConfig()
     scoring_client_config: ScoringClientConfig = ScoringClientConfig()
@@ -48,8 +49,8 @@ class Config(BaseSettings):
     wallet_hotkey: str = "default"
     use_nineteen_api: bool = False
 
-    @model_validator(mode='after')
-    def update_model_name(self) -> 'Config':
+    @model_validator(mode="after")
+    def update_model_name(self) -> "Config":
         if self.use_nineteen_api:
             self.vllm_config.model_name = "chat-llama-3-1-70b"
         return self
