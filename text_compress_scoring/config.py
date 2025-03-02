@@ -60,7 +60,6 @@ class Config(BaseSettings):
         env_file = ".env"
         extra = "ignore"
         env_ignore = [".*"]
-        env_prefix = None
 
 
 CONFIG = Config()
