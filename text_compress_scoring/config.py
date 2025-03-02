@@ -59,6 +59,8 @@ class Config(BaseSettings):
         env_nested_delimiter = "__"
         env_file = ".env"
         extra = "ignore"
+        env_ignore = [".*"]
+        env_prefix = None
 
 
 CONFIG = Config()
