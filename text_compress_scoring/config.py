@@ -9,6 +9,7 @@ class PromptGuardConfig(BaseSettings):
 
     class Config:
         extra = "ignore"
+        env_prefix = "PROMPT_GUARD_CONFIG__"
 
 
 class ScoringClientConfig(BaseSettings):
@@ -22,6 +23,7 @@ class ScoringClientConfig(BaseSettings):
 
     class Config:
         extra = "ignore"
+        env_prefix = "SCORING_CLIENT_CONFIG__"
 
 
 class vLLMConfig(BaseSettings):
@@ -38,6 +40,7 @@ class vLLMConfig(BaseSettings):
 
     class Config:
         extra = "ignore"
+        env_prefix = "VLLM_CONFIG__"
 
 
 class Config(BaseSettings):
