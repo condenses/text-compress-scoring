@@ -31,11 +31,11 @@ class vLLMConfig(BaseSettings):
     timeout: float = 128.0
     model_name: str = "meta-llama/Llama-3.1-8B-Instruct"
     temperature: float = 0.01
-    max_tokens: int = 1024
-    top_p: float = 0.9
+    max_tokens: int = 2048
+    top_p: float = 0.95
     top_k: int = 40
     repetition_penalty: float = 1.0
-    max_new_tokens: int = 1024
+    max_new_tokens: int = 2048
     api_key: str = "sk-proj-1234567890"
 
     class Config:
