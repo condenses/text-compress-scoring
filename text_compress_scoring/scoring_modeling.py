@@ -7,6 +7,7 @@ from transformers import pipeline
 from .config import CONFIG
 import torch
 from .utils import retry
+
 SYSTEM_PROMPT = """You are direct and efficient. Follow these rules:
 
 Core Rules:
@@ -85,46 +86,46 @@ The response demonstrates understanding of concepts A and B with clear explanati
 Please proceed with your evaluation based on these instructions."""
 
 HELPFULNESS_RUBRIC = """
-[Does the model provide relevant and useful responses to the user's needs or questions?]
+[Does the model provide relevant and useful responses comparable to the reference answer?]
 
 Score 1:
 - Responses are completely off-topic or irrelevant
-- Fails to understand or address the user's basic query
+- Significantly inferior to the reference answer in addressing user needs
 - Provides incorrect or misleading information
 - May be harmful or counterproductive to user's needs
 - Shows no evidence of understanding the context
 
 Score 2:
-- Responses are partially relevant but mostly miss the mark
+- Responses are partially relevant but fall far short of reference answer quality
 - Addresses surface-level aspects while missing core needs
-- Contains significant gaps or inaccuracies
+- Contains significant gaps or inaccuracies compared to reference
 - Requires substantial follow-up questions for clarity
 - Shows limited understanding of user context
 
 Score 3:
-- Responses are generally on-topic and helpful
-- Addresses main points but may miss some details
-- Information is mostly accurate with minor gaps
-- May need occasional clarification
+- Responses are generally on-topic but noticeably less helpful than reference
+- Addresses main points but lacks the completeness of the reference answer
+- Information is mostly accurate but with gaps the reference doesn't have
+- May need clarification where reference would be clear
 - Demonstrates basic understanding of context
-- Solutions are workable but not optimal
+- Solutions are workable but less optimal than reference
 
 Score 4:
-- Responses are well-aligned with user needs
-- Addresses both main points and important details
-- Information is accurate and well-structured
+- Responses approach reference answer quality but with minor shortcomings
+- Addresses most points and details covered in the reference
+- Information is accurate and well-structured, nearly matching reference
 - Requires minimal clarification
-- Shows good understanding of context
-- Provides effective, practical solutions
+- Shows good understanding of context similar to reference
+- Provides effective solutions comparable to reference in most aspects
 
 Score 5:
-- Responses perfectly match user needs and context
-- Addresses all aspects comprehensively
-- Information is completely accurate and thorough
-- Requires no clarification or follow-up
-- Demonstrates deep understanding of context
-- Provides optimal, actionable solutions
-- Anticipates potential issues or edge cases
+- Responses match or exceed reference answer quality
+- Addresses all aspects as comprehensively as the reference
+- Information is completely accurate and thorough like the reference
+- Requires no clarification or follow-up, just like the reference
+- Demonstrates equivalent or better understanding of context
+- Provides optimal, actionable solutions equivalent to reference answer
+- Anticipates potential issues or edge cases as well as reference does
 """.strip()
 
 
@@ -161,6 +162,7 @@ class LLMPreferenceModel:
                 {"role": "user", "content": prompt},
             ],
             temperature=CONFIG.vllm_config.temperature,
+            top_p=0.95,
         )
         completion = response.choices[0].message.content
         match = re.search(
