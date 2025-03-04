@@ -68,9 +68,9 @@ class LLMPreferenceModel:
         Returns an integer score between 1 and 5.
         """
         prompt = SIMPLE_COMPARISON_PROMPT.format(
-            INSTRUCTION=data_point.instruction,
-            RESPONSE=data_point.response,
-            REFERENCE_ANSWER=data_point.reference_answer,
+            instruction=data_point.instruction,
+            response=data_point.response,
+            reference_answer=data_point.reference_answer,
         )
         response = self.llm_client.chat.completions.create(
             model=self.model,
