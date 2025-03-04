@@ -29,111 +29,29 @@ Format:
 
 If confused, ask only what's needed to answer. Nothing more."""
 
+SIMPLE_COMPARISON_PROMPT = """You are comparing a submitted answer to an expert answer on a given question. Here is the data:
+[BEGIN DATA]
+************
+[Question]: {instruction}
+************
+[Expert]: {reference_answer}
+************
+[Submission]: {response}
+************
+[END DATA]
 
-# Corrected prompt name and content.
-ABSOLUTE_REFINE_PROMPT = """You are an expert evaluator tasked with assessing the quality of a response based on a specific scoring rubric. Your goal is to provide concise feedback and assign a score that accurately reflects the response's quality.
-
-Please review the following information:
-
-1. Instruction to evaluate:
-<instruction_to_evaluate>
-{INSTRUCTION}
-</instruction_to_evaluate>
-
-2. Reference answer (This would receive a score of 5):
-<reference_answer>
-{REFERENCE_ANSWER}
-</reference_answer>
-
-3. Scoring rubric:
-<score_rubric>
-{RUBRIC}
-</score_rubric>
-
-4. Response to evaluate:
-<response_to_evaluate>
-{RESPONSE}
-</response_to_evaluate>
-
-Follow these steps to complete your evaluation:
-
-1. Write concise feedback:
-   Based on your analysis, provide clear and concise feedback that directly addresses each criterion in the rubric. Be objective and specific, using examples from the response to support your evaluation.
-
-2. Assign a score:
-   Determine an integer score between 1 and 5, where 5 is the highest quality (equivalent to the reference answer) and 1 is the lowest. Ensure your score accurately reflects your feedback and aligns with the rubric.
-
-3. Format your output as follows:
-   <feedback>
-   (Your concise feedback here)
-   </feedback>
-   <score>(Integer score between 1 and 5)</score>
-
-Important guidelines:
-- Focus solely on the criteria outlined in the rubric.
-- Be objective and consistent in your evaluation.
-- Provide feedback that is clear and concise.
-- Do not include any opening statements, closing remarks, or additional explanations outside of the specified format.
-- Do not generate or evaluate any content not provided in the input materials.
-
-Example output structure (do not use this content, it's just to illustrate the format):
-
-<feedback>
-The response demonstrates understanding of concepts A and B with clear explanations. However, it lacks discussion on crucial concept C. Writing is clear but could use more supporting examples. Minor error in concept B explanation slightly impacts quality.
-</feedback>
-<score>4</score>
-
-Please proceed with your evaluation based on these instructions."""
-
-HELPFULNESS_RUBRIC = """
-[Does the model provide relevant and useful responses comparable to the reference answer?]
-
-Score 1:
-- Responses are completely off-topic or irrelevant
-- Significantly inferior to the reference answer in addressing user needs
-- Provides incorrect or misleading information
-- May be harmful or counterproductive to user's needs
-- Shows no evidence of understanding the context
-
-Score 2:
-- Responses are partially relevant but fall far short of reference answer quality
-- Addresses surface-level aspects while missing core needs
-- Contains significant gaps or inaccuracies compared to reference
-- Requires substantial follow-up questions for clarity
-- Shows limited understanding of user context
-
-Score 3:
-- Responses are generally on-topic but noticeably less helpful than reference
-- Addresses main points but lacks the completeness of the reference answer
-- Information is mostly accurate but with gaps the reference doesn't have
-- May need clarification where reference would be clear
-- Demonstrates basic understanding of context
-- Solutions are workable but less optimal than reference
-
-Score 4:
-- Responses approach reference answer quality but with minor shortcomings
-- Addresses most points and details covered in the reference
-- Information is accurate and well-structured, nearly matching reference
-- Requires minimal clarification
-- Shows good understanding of context similar to reference
-- Provides effective solutions comparable to reference in most aspects
-
-Score 5:
-- Responses match or exceed reference answer quality
-- Addresses all aspects as comprehensively as the reference
-- Information is completely accurate and thorough like the reference
-- Requires no clarification or follow-up, just like the reference
-- Demonstrates equivalent or better understanding of context
-- Provides optimal, actionable solutions equivalent to reference answer
-- Anticipates potential issues or edge cases as well as reference does
-""".strip()
+Compare the factual content of the submitted answer with the expert answer. Ignore any differences in style, grammar, or punctuation.
+Rate the submission on a scale of 1 to 10.
+Put the score in <score> tags.
+Example:
+<score>10</score>
+"""
 
 
 class RelativeDataPoint(BaseModel):
     instruction: str
     response: str
     reference_answer: str
-    rubric: str = HELPFULNESS_RUBRIC
 
 
 class LLMPreferenceModel:
@@ -149,11 +67,10 @@ class LLMPreferenceModel:
         Compute the absolute grade for a single data point using the vLLM model.
         Returns an integer score between 1 and 5.
         """
-        prompt = ABSOLUTE_REFINE_PROMPT.format(
+        prompt = SIMPLE_COMPARISON_PROMPT.format(
             INSTRUCTION=data_point.instruction,
             RESPONSE=data_point.response,
             REFERENCE_ANSWER=data_point.reference_answer,
-            RUBRIC=data_point.rubric,
         )
         response = self.llm_client.chat.completions.create(
             model=self.model,
@@ -165,27 +82,25 @@ class LLMPreferenceModel:
             top_p=0.95,
         )
         completion = response.choices[0].message.content
-        match = re.search(
-            r"<feedback>(.*?)</feedback>\s*<score>(\d+)</score>", completion, re.DOTALL
-        )
+        match = re.search(r"<score>(\d+)</score>", completion, re.DOTALL)
         if not match:
             logger.warning(f"Could not parse completion: {completion}")
-            return "No feedback provided", 1
+            return "No score provided", 1
         self.total_input_tokens += response.usage.prompt_tokens
         self.total_output_tokens += response.usage.completion_tokens
         logger.info(
             f"Prometheus scoring: {data_point.instruction[:32]}... | {data_point.response[:32]}... | {data_point.reference_answer[:32]}... | {response.usage.prompt_tokens} input tokens | {response.usage.completion_tokens} output tokens"
         )
-        feedback, score = match.groups()
-        return feedback.strip(), int(score)
+        score = match.groups()[0]
+        return int(score)
 
     def score_absolute(self, data_point: RelativeDataPoint) -> int:
         """
         Compute the absolute grade for a single data point using the Prometheus model.
         Returns an integer score between 1 and 5.
         """
-        feedback, score = self.single_absolute_grade(data_point)
-        logger.info(f"Prometheus feedback: {feedback} | score: {score}")
+        score = self.single_absolute_grade(data_point)
+        logger.info(f"Prometheus score: {score}")
         return score
 
     def score_batch(
@@ -204,7 +119,7 @@ class LLMPreferenceModel:
             )
             for response in responses
         ]
-        normalized_scores = [score / 5.0 for score in scores]
+        normalized_scores = [score / 10.0 for score in scores]
         return normalized_scores
 
 
