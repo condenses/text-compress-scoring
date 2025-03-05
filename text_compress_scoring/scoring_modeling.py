@@ -276,7 +276,7 @@ Based on the guidelines above, generate a concise core command that captures the
         """
         prompt_embedding = self.sentence_transformer.encode(original_command)
         core_command_embedding = self.sentence_transformer.encode(core_command)
-        similarity = self.sentence_transformer.cosine_similarity(
+        similarity = self.sentence_transformer.similarity(
             prompt_embedding, core_command_embedding
         )
         logger.info(
