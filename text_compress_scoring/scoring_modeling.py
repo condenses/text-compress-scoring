@@ -7,6 +7,9 @@ from transformers import pipeline
 from .config import CONFIG
 import torch
 from .utils import retry
+from sentence_transformers import SentenceTransformer
+
+
 SYSTEM_PROMPT = """You are direct and efficient. Follow these rules:
 
 Core Rules:
@@ -207,11 +210,16 @@ class LLMPreferenceModel:
 
 
 class GuardingModel:
-    def __init__(self):
+    def __init__(self, openai_client: OpenAI):
+        self.llm_client = openai_client
+        self.model = CONFIG.vllm_config.model_name
         self.prompt_guard = pipeline(
             "text-classification",
             model=CONFIG.prompt_guard_config.model_name,
             device=CONFIG.prompt_guard_config.device,  # Use 'device' if supported
+        )
+        self.sentence_transformer = SentenceTransformer(
+            "all-MiniLM-L6-v2", device="cuda"
         )
 
     @torch.no_grad()
@@ -227,3 +235,51 @@ class GuardingModel:
         except Exception as e:
             logger.error(f"Error in prompt guard: {e}")
             return True
+
+    def generate_core_command(self, prompt: str) -> str:
+        """
+        Generate a core command for a given prompt.
+        """
+        CHECKING_PROMPT = """
+You are tasked with generating a concise core command that captures the overall instruction from a given prompt. This core command should be brief and focused on the main task, without including detailed context or specific examples.
+
+Guidelines for generating the core command:
+1. Identify the primary action or task in the prompt
+2. Remove any unnecessary context, examples, or detailed instructions
+3. Use clear and concise language
+4. Aim for a single sentence or phrase that encapsulates the main goal
+5. Ensure the core command is general enough to apply to various contexts within the original prompt's scope
+
+Here is the prompt to analyze:
+
+<prompt>
+{PROMPT}
+</prompt>
+
+Based on the guidelines above, generate a concise core command that captures the overall instruction from this prompt.
+        """
+        prompt = CHECKING_PROMPT.format(PROMPT=prompt)
+        response = self.llm_client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.01,
+            max_completion_tokens=256,
+        )
+        completion = response.choices[0].message.content
+        return completion.strip()
+
+    def guard_command_preservation(
+        self, original_command: str, core_command: str, threshold: float = 0.5
+    ) -> bool:
+        """
+        Check similarity between prompt and core command.
+        """
+        prompt_embedding = self.sentence_transformer.encode(original_command)
+        core_command_embedding = self.sentence_transformer.encode(core_command)
+        similarity = self.sentence_transformer.cosine_similarity(
+            prompt_embedding, core_command_embedding
+        )
+        logger.info(
+            f"Command preservation: {original_command[:32]}... | {core_command[:32]}... | {similarity}"
+        )
+        return similarity < threshold

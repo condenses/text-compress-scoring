@@ -29,6 +29,7 @@ WALLET = bt.Wallet(
     hotkey=CONFIG.wallet_hotkey,
 )
 
+
 def get_signature_headers() -> dict:
     """
     Get the signature headers for the validator.
@@ -43,19 +44,18 @@ def get_signature_headers() -> dict:
         "Content-Type": "application/json",
     }
 
+
 class NineteenAPI(OpenAI):
 
     @property
     def auth_headers(self) -> dict:
         return get_signature_headers()
 
+
 # Initialize models and clients
 app = FastAPI()
 if CONFIG.use_nineteen_api:
-    openai_client = NineteenAPI(
-        base_url="https://api.nineteen.ai/v1",
-        api_key="abc"
-    )
+    openai_client = NineteenAPI(base_url="https://api.nineteen.ai/v1", api_key="abc")
 else:
     openai_client = OpenAI(
         base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
@@ -95,13 +95,20 @@ def generate_assistant_message(user_message: str, model: str) -> str:
     return assistant_message
 
 
-def get_valid_messages(messages: List[str]) -> List[int]:
+def get_valid_messages(messages: List[str], original_message: str) -> List[int]:
     """Filter messages through prompt guard and return valid indices."""
+    original_command = guarding_model.generate_core_command(original_message)
     valid_indices = []
     for i, message in enumerate(messages):
         logger.debug(f"Checking message {i} through prompt guard")
         if guarding_model.guard(message):
             logger.warning(f"Message {i} failed prompt guard check")
+            break
+        command = guarding_model.generate_core_command(message)
+        if guarding_model.guard_command_preservation(
+            original_message, command, threshold=0.5
+        ):
+            logger.warning(f"Message {i} failed command preservation check")
             break
         valid_indices.append(i)
         logger.debug(f"Message {i} passed prompt guard check")
@@ -126,7 +133,9 @@ def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
         )
 
         scores = [0.0] * len(request.batch_compressed_user_messages)
-        valid_indices = get_valid_messages(request.batch_compressed_user_messages)
+        valid_indices = get_valid_messages(
+            request.batch_compressed_user_messages, request.original_user_message
+        )
 
         if not valid_indices:
             logger.warning("No valid messages to score, returning zero scores")
@@ -141,6 +150,7 @@ def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
 
         # Generate responses for valid compressed messages
         responses = []
+        commands = []
         for i in valid_indices:
             response = generate_assistant_message(
                 request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
