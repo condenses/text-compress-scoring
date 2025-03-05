@@ -61,7 +61,7 @@ else:
         base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
     )
 preference_score = LLMPreferenceModel(openai_client)
-guarding_model = GuardingModel()
+guarding_model = GuardingModel(openai_client)
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
 # Add CORS middleware if needed
