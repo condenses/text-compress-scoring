@@ -106,7 +106,7 @@ def get_valid_messages(messages: List[str], original_message: str) -> List[int]:
             break
         command = guarding_model.generate_core_command(message)
         if guarding_model.guard_command_preservation(
-            original_message, command, threshold=0.5
+            original_message, command, threshold=0.4
         ):
             logger.warning(f"Message {i} failed command preservation check")
             break

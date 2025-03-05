@@ -256,8 +256,8 @@ Here is the prompt to analyze:
 {PROMPT}
 </prompt>
 
-Based on the guidelines above, generate a concise core command that captures the overall instruction from this prompt.
-        """
+Based on the guidelines above, generate a concise core command that captures the overall instruction from this prompt. Only output the core command, nothing else.
+"""
         prompt = CHECKING_PROMPT.format(PROMPT=prompt)
         response = self.llm_client.chat.completions.create(
             model=self.model,
