@@ -29,6 +29,7 @@ WALLET = bt.Wallet(
     hotkey=CONFIG.wallet_hotkey,
 )
 
+
 def get_signature_headers() -> dict:
     """
     Get the signature headers for the validator.
@@ -43,19 +44,18 @@ def get_signature_headers() -> dict:
         "Content-Type": "application/json",
     }
 
+
 class NineteenAPI(OpenAI):
 
     @property
     def auth_headers(self) -> dict:
         return get_signature_headers()
 
+
 # Initialize models and clients
 app = FastAPI()
 if CONFIG.use_nineteen_api:
-    openai_client = NineteenAPI(
-        base_url="https://api.nineteen.ai/v1",
-        api_key="abc"
-    )
+    openai_client = NineteenAPI(base_url="https://api.nineteen.ai/v1", api_key="abc")
 else:
     openai_client = OpenAI(
         base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
@@ -77,7 +77,9 @@ app.add_middleware(
 @retry(max_retries=3, retry_delay=5)
 def generate_assistant_message(user_message: str, model: str) -> str:
     """Generate assistant response using OpenAI API."""
-    logger.debug(f"Generating assistant message using model {model}")
+    logger.debug(
+        f"Generating assistant message using model {model}, base url: {openai_client.base_url}"
+    )
     logger.debug(f"User message: {user_message[:100]}...")
 
     response = openai_client.chat.completions.create(
