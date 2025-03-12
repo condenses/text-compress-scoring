@@ -75,8 +75,16 @@ class ParaphraseScorer:
             temperature=CONFIG.vllm_config.temperature,
         )
         completion = response.choices[0].message.content
-        match = re.search(r"<score>(\d+)</score>", completion, re.DOTALL)
-        if not match:
+
+        # Fix regex to handle both spellings of explanation
+        score_match = re.search(r"<score>\s*(\d+)\s*</score>", completion, re.DOTALL)
+        explanation_match = re.search(
+            r"<(explaination|explanation)>(.*?)</(explaination|explanation)>",
+            completion,
+            re.DOTALL,
+        )
+
+        if not score_match:
             logger.warning(f"Could not parse completion: {completion}")
             return "No feedback provided", 1
 
@@ -86,13 +94,10 @@ class ParaphraseScorer:
             f"Paraphrase scoring: Original: {original_text[:32]}... | Paraphrase: {paraphrase[:32]}... | {response.usage.prompt_tokens} input tokens | {response.usage.completion_tokens} output tokens"
         )
 
-        score = match.group(1)
+        score = score_match.group(1).strip()
         # Extract explanation if available
-        explanation_match = re.search(
-            r"<explaination>(.*?)</explaination>", completion, re.DOTALL
-        )
         explanation = (
-            explanation_match.group(1).strip()
+            explanation_match.group(2).strip()
             if explanation_match
             else "No explanation provided"
         )
