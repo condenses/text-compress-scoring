@@ -77,7 +77,9 @@ app.add_middleware(
 @retry(max_retries=3, retry_delay=5)
 def generate_assistant_message(user_message: str, model: str) -> str:
     """Generate assistant response using OpenAI API."""
-    logger.debug(f"Generating assistant message using model {model}")
+    logger.debug(
+        f"Generating assistant message using model {model}, base url: {openai_client.base_url}"
+    )
     logger.debug(f"User message: {user_message[:100]}...")
 
     response = openai_client.chat.completions.create(
