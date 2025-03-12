@@ -4,17 +4,9 @@ from typing import List
 from loguru import logger
 from openai import OpenAI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
-from .utils import retry
 
 from .scoring_modeling import (
-    LLMPreferenceModel,
-    SYSTEM_PROMPT,
+    ParaphraseScorer,
     GuardingModel,
 )
 from .schemas import BatchScoringRequest, BatchScoringResponse
@@ -46,7 +38,6 @@ def get_signature_headers() -> dict:
 
 
 class NineteenAPI(OpenAI):
-
     @property
     def auth_headers(self) -> dict:
         return get_signature_headers()
@@ -60,11 +51,11 @@ else:
     openai_client = OpenAI(
         base_url=CONFIG.vllm_config.base_url, api_key=CONFIG.vllm_config.api_key
     )
-preference_score = LLMPreferenceModel(openai_client)
+paraphrase_scorer = ParaphraseScorer(openai_client)
 guarding_model = GuardingModel()
 logger.info("Initialized FastAPI server with scoring model and OpenAI client")
 
-# Add CORS middleware if needed
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -72,29 +63,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@retry(max_retries=3, retry_delay=5)
-def generate_assistant_message(user_message: str, model: str) -> str:
-    """Generate assistant response using OpenAI API."""
-    logger.debug(
-        f"Generating assistant message using model {model}, base url: {openai_client.base_url}"
-    )
-    logger.debug(f"User message: {user_message[:100]}...")
-
-    response = openai_client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
-        ],
-        temperature=CONFIG.vllm_config.temperature,
-        top_p=CONFIG.vllm_config.top_p,
-        max_completion_tokens=CONFIG.vllm_config.max_new_tokens,
-    )
-    assistant_message = response.choices[0].message.content
-    logger.debug(f"Generated assistant message: {assistant_message[:100]}...")
-    return assistant_message
 
 
 def get_valid_messages(messages: List[str]) -> List[int]:
@@ -111,11 +79,14 @@ def get_valid_messages(messages: List[str]) -> List[int]:
 
 
 def calculate_scores(
-    instruction: str, reference_answer: str, responses: List[str]
+    original_message: str,
+    compressed_messages: List[str],
 ) -> List[float]:
-    """Calculate combined scores using enabled scoring models."""
-    scores = preference_score.score_batch(instruction, reference_answer, responses)
-    logger.info(f"Preference scores: {scores}")
+    """Calculate paraphrase scores between original and compressed messages."""
+    scores = paraphrase_scorer.score_paraphrase_batch(
+        original_message, compressed_messages
+    )
+    logger.info(f"Paraphrase scores: {scores}")
     return scores
 
 
@@ -134,24 +105,15 @@ def scoring(request: BatchScoringRequest) -> BatchScoringResponse:
             logger.warning("No valid messages to score, returning zero scores")
             return BatchScoringResponse(scores=scores)
 
-        # Generate reference response
-        logger.info(f"Using model for generation: {CONFIG.vllm_config.model_name}")
+        # Get valid compressed messages
+        valid_compressed_messages = [
+            request.batch_compressed_user_messages[i] for i in valid_indices
+        ]
 
-        original_assistant_message = generate_assistant_message(
-            request.original_user_message, CONFIG.vllm_config.model_name
-        )
-
-        # Generate responses for valid compressed messages
-        responses = []
-        for i in valid_indices:
-            response = generate_assistant_message(
-                request.batch_compressed_user_messages[i], CONFIG.vllm_config.model_name
-            )
-            responses.append(response)
-
-        # Calculate final scores
+        # Calculate paraphrase scores
         valid_scores = calculate_scores(
-            request.original_user_message, original_assistant_message, responses
+            request.original_user_message,
+            valid_compressed_messages,
         )
 
         # Update scores for valid indices

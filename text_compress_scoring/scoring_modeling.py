@@ -7,135 +7,48 @@ from transformers import pipeline
 from .config import CONFIG
 import torch
 from .utils import retry
-SYSTEM_PROMPT = """You are direct and efficient. Follow these rules:
 
-Core Rules:
-- Answer immediately with key information
-- Skip all pleasantries and context
-- Use simple words and short sentences
-- Never elaborate unless asked
-- Don't ask follow-up questions
-- Don't explain your process
-- Don't offer alternatives
-- Don't make suggestions
+PARAPHRASE_SCORE_PROMPT = """
+You are an impartial evaluator tasked with analyzing a paraphrase based on specific criteria. You will be provided with an original text and its paraphrase. Your goal is to evaluate the paraphrase and assign a score from 1 (worst) to 10 (best) based on the following criteria:
 
-Format:
-- One line answers when possible
-- No greetings or signoffs
-- Skip examples
-- Code only without explanation
-- Use active voice only
+1. Meaning Retention (40% weight): Does the paraphrase preserve the core meaning and intent of the original?
+2. Key Details (30% weight): Are all critical facts, entities, and nuances retained?
+3. Wording & Structure (20% weight): Does it use distinct vocabulary/syntax while avoiding plagiarism?
+4. Grammar & Fluency (10% weight): Is the paraphrase grammatically correct and natural-sounding?
 
-If confused, ask only what's needed to answer. Nothing more."""
+Here is the original text:
+<original_text>
+{ORIGINAL_TEXT}
+</original_text>
 
+Here is the paraphrase:
+<paraphrase>
+{PARAPHRASE}
+</paraphrase>
 
-# Corrected prompt name and content.
-ABSOLUTE_REFINE_PROMPT = """You are an expert evaluator tasked with assessing the quality of a response based on a specific scoring rubric. Your goal is to provide concise feedback and assign a score that accurately reflects the response's quality.
+Carefully analyze the paraphrase in relation to the original text, considering each of the four criteria. Pay special attention to whether the core meaning is preserved, key details are retained, wording is sufficiently different, and the paraphrase is grammatically correct and fluent.
 
-Please review the following information:
+In your analysis, use the following scoring guidelines:
+- 1-3: Major meaning distortion, missing key details, or nonsensical.
+- 4-6: Partial meaning preserved but with omissions/errors.
+- 7-9: Minor issues (e.g., awkward phrasing, slight inaccuracies).
+- 10: Flawless: Equivalent meaning, no redundancy, and natural language.
 
-1. Instruction to evaluate:
-<instruction_to_evaluate>
-{INSTRUCTION}
-</instruction_to_evaluate>
+First, provide a concise explanation of your evaluation, highlighting strengths and weaknesses according to each criterion. Then, based on your analysis, assign an overall score from 1 to 10.
 
-2. Reference answer (This would receive a score of 5):
-<reference_answer>
-{REFERENCE_ANSWER}
-</reference_answer>
+Present your response in the following format:
+<explaination>
+[Your concise analysis here, addressing each criterion]
+</explainataion>
 
-3. Scoring rubric:
-<score_rubric>
-{RUBRIC}
-</score_rubric>
+<score>
+[Your numerical score from 1 to 10]
+</score>
 
-4. Response to evaluate:
-<response_to_evaluate>
-{RESPONSE}
-</response_to_evaluate>
-
-Follow these steps to complete your evaluation:
-
-1. Write concise feedback:
-   Based on your analysis, provide clear and concise feedback that directly addresses each criterion in the rubric. Be objective and specific, using examples from the response to support your evaluation.
-
-2. Assign a score:
-   Determine an integer score between 1 and 5, where 5 is the highest quality (equivalent to the reference answer) and 1 is the lowest. Ensure your score accurately reflects your feedback and aligns with the rubric.
-
-3. Format your output as follows:
-   <feedback>
-   (Your concise feedback here)
-   </feedback>
-   <score>(Integer score between 1 and 5)</score>
-
-Important guidelines:
-- Focus solely on the criteria outlined in the rubric.
-- Be objective and consistent in your evaluation.
-- Provide feedback that is clear and concise.
-- Do not include any opening statements, closing remarks, or additional explanations outside of the specified format.
-- Do not generate or evaluate any content not provided in the input materials.
-
-Example output structure (do not use this content, it's just to illustrate the format):
-
-<feedback>
-The response demonstrates understanding of concepts A and B with clear explanations. However, it lacks discussion on crucial concept C. Writing is clear but could use more supporting examples. Minor error in concept B explanation slightly impacts quality.
-</feedback>
-<score>4</score>
-
-Please proceed with your evaluation based on these instructions."""
-
-HELPFULNESS_RUBRIC = """
-[Does the model provide relevant and useful responses to the user's needs or questions?]
-
-Score 1:
-- Responses are completely off-topic or irrelevant
-- Fails to understand or address the user's basic query
-- Provides incorrect or misleading information
-- May be harmful or counterproductive to user's needs
-- Shows no evidence of understanding the context
-
-Score 2:
-- Responses are partially relevant but mostly miss the mark
-- Addresses surface-level aspects while missing core needs
-- Contains significant gaps or inaccuracies
-- Requires substantial follow-up questions for clarity
-- Shows limited understanding of user context
-
-Score 3:
-- Responses are generally on-topic and helpful
-- Addresses main points but may miss some details
-- Information is mostly accurate with minor gaps
-- May need occasional clarification
-- Demonstrates basic understanding of context
-- Solutions are workable but not optimal
-
-Score 4:
-- Responses are well-aligned with user needs
-- Addresses both main points and important details
-- Information is accurate and well-structured
-- Requires minimal clarification
-- Shows good understanding of context
-- Provides effective, practical solutions
-
-Score 5:
-- Responses perfectly match user needs and context
-- Addresses all aspects comprehensively
-- Information is completely accurate and thorough
-- Requires no clarification or follow-up
-- Demonstrates deep understanding of context
-- Provides optimal, actionable solutions
-- Anticipates potential issues or edge cases
-""".strip()
+Ensure that your explanation is thorough yet concise, and that your score accurately reflects your analysis based on the given criteria and scoring guidelines."""
 
 
-class RelativeDataPoint(BaseModel):
-    instruction: str
-    response: str
-    reference_answer: str
-    rubric: str = HELPFULNESS_RUBRIC
-
-
-class LLMPreferenceModel:
+class ParaphraseScorer:
     def __init__(self, openai_client: OpenAI):
         self.llm_client = openai_client
         self.model = CONFIG.vllm_config.model_name
@@ -143,66 +56,66 @@ class LLMPreferenceModel:
         self.total_output_tokens = 0
 
     @retry(max_retries=3, retry_delay=5)
-    def single_absolute_grade(self, data_point: RelativeDataPoint) -> int:
+    def single_paraphrase_grade(
+        self, original_text: str, paraphrase: str
+    ) -> tuple[str, int]:
         """
-        Compute the absolute grade for a single data point using the vLLM model.
-        Returns an integer score between 1 and 5.
+        Compute the paraphrase score between original text and its paraphrase.
+        Returns a tuple of (feedback, score) where score is between 1 and 10.
         """
-        prompt = ABSOLUTE_REFINE_PROMPT.format(
-            INSTRUCTION=data_point.instruction,
-            RESPONSE=data_point.response,
-            REFERENCE_ANSWER=data_point.reference_answer,
-            RUBRIC=data_point.rubric,
+        prompt = PARAPHRASE_SCORE_PROMPT.format(
+            ORIGINAL_TEXT=original_text,
+            PARAPHRASE=paraphrase,
         )
         response = self.llm_client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
             temperature=CONFIG.vllm_config.temperature,
         )
         completion = response.choices[0].message.content
-        match = re.search(
-            r"<feedback>(.*?)</feedback>\s*<score>(\d+)</score>", completion, re.DOTALL
-        )
+        match = re.search(r"<score>(\d+)</score>", completion, re.DOTALL)
         if not match:
             logger.warning(f"Could not parse completion: {completion}")
             return "No feedback provided", 1
+
         self.total_input_tokens += response.usage.prompt_tokens
         self.total_output_tokens += response.usage.completion_tokens
         logger.info(
-            f"Prometheus scoring: {data_point.instruction[:32]}... | {data_point.response[:32]}... | {data_point.reference_answer[:32]}... | {response.usage.prompt_tokens} input tokens | {response.usage.completion_tokens} output tokens"
+            f"Paraphrase scoring: Original: {original_text[:32]}... | Paraphrase: {paraphrase[:32]}... | {response.usage.prompt_tokens} input tokens | {response.usage.completion_tokens} output tokens"
         )
-        feedback, score = match.groups()
-        return feedback.strip(), int(score)
 
-    def score_absolute(self, data_point: RelativeDataPoint) -> int:
-        """
-        Compute the absolute grade for a single data point using the Prometheus model.
-        Returns an integer score between 1 and 5.
-        """
-        feedback, score = self.single_absolute_grade(data_point)
-        logger.info(f"Prometheus feedback: {feedback} | score: {score}")
-        return score
+        score = match.group(1)
+        # Extract explanation if available
+        explanation_match = re.search(
+            r"<explaination>(.*?)</explaination>", completion, re.DOTALL
+        )
+        explanation = (
+            explanation_match.group(1).strip()
+            if explanation_match
+            else "No explanation provided"
+        )
 
-    def score_batch(
-        self, instruction: str, reference_answer: str, responses: list[str]
+        return explanation, int(score)
+
+    def score_paraphrase_batch(
+        self, original_message: str, compressed_messages: list[str]
     ) -> list[float]:
         """
-        Compute absolute scores for a batch of responses and normalize them by dividing by 5.
+        Compute paraphrase scores for a batch of original texts and their paraphrases.
+        Returns normalized scores between 0 and 1.
         """
-        scores = [
-            self.score_absolute(
-                RelativeDataPoint(
-                    instruction=instruction,
-                    response=response,
-                    reference_answer=reference_answer,
-                )
+        scores = []
+        for compressed_message in compressed_messages:
+            feedback, score = self.single_paraphrase_grade(
+                original_message, compressed_message
             )
-            for response in responses
-        ]
-        normalized_scores = [score / 5.0 for score in scores]
+            logger.info(f"Paraphrase feedback: {feedback} | score: {score}")
+            scores.append(score)
+
+        # Normalize scores from 1-10 to 0-1
+        normalized_scores = [score / 10.0 for score in scores]
         return normalized_scores
 
 
