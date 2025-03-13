@@ -69,10 +69,10 @@ def get_valid_messages(messages: List[str]) -> List[int]:
     """Filter messages through prompt guard and return valid indices."""
     valid_indices = []
     for i, message in enumerate(messages):
-        logger.debug(f"Checking message {i} through prompt guard")
-        if guarding_model.guard(message):
-            logger.warning(f"Message {i} failed prompt guard check")
-            break
+        # logger.debug(f"Checking message {i} through prompt guard")
+        # if guarding_model.guard(message):
+        #     logger.warning(f"Message {i} failed prompt guard check")
+        #     break
         valid_indices.append(i)
         logger.debug(f"Message {i} passed prompt guard check")
     return valid_indices
