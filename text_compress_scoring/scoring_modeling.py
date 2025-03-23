@@ -26,10 +26,12 @@ Here is the paraphrase:
 {PARAPHRASE}
 </paraphrase>
 
+IMPORTANT: First, check if the paraphrase contains meta-text or instructions such as "Here is a rephrased version..." or "I've paraphrased this text while..." or any similar prefacing statements. Such content should NOT be present in a proper paraphrase and will significantly reduce the score. A proper paraphrase should only contain the rephrased content itself, with no meta-commentary.
+
 Carefully analyze the paraphrase in relation to the original text, considering each of the four criteria. Pay special attention to whether the core meaning is preserved, key details are retained, wording is sufficiently different, and the paraphrase is grammatically correct and fluent.
 
 In your analysis, use the following scoring guidelines:
-- 1-3: Major meaning distortion, missing key details, or nonsensical.
+- 1-3: Major meaning distortion, missing key details, nonsensical, or contains meta-text/instructions.
 - 4-6: Partial meaning preserved but with omissions/errors.
 - 7-9: Minor issues (e.g., awkward phrasing, slight inaccuracies).
 - 10: Flawless: Equivalent meaning, no redundancy, and natural language.
@@ -37,16 +39,15 @@ In your analysis, use the following scoring guidelines:
 First, provide a concise explanation of your evaluation, highlighting strengths and weaknesses according to each criterion. Then, based on your analysis, assign an overall score from 1 to 10.
 
 Present your response in the following format:
-<explaination>
+<explanation>
 [Your concise analysis here, addressing each criterion]
-</explainataion>
+</explanation>
 
 <score>
 [Your numerical score from 1 to 10]
 </score>
 
 Ensure that your explanation is thorough yet concise, and that your score accurately reflects your analysis based on the given criteria and scoring guidelines."""
-
 
 class ParaphraseScorer:
     def __init__(self, openai_client: OpenAI):
