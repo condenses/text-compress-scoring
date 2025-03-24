@@ -76,6 +76,7 @@ Perspective Match? [Yes/No] (if informative)
 {PARAPHRASE}
 """
 
+
 class ParaphraseScorer:
     def __init__(self, openai_client: OpenAI):
         self.llm_client = openai_client
@@ -112,6 +113,12 @@ class ParaphraseScorer:
             re.DOTALL,
         )
 
+        rationale_match = re.search(
+            r"<score_rationale>(.*?)</score_rationale>",
+            completion,
+            re.DOTALL,
+        )
+
         if not score_match:
             logger.warning(f"Could not parse completion: {completion}")
             return "No feedback provided", 1
@@ -123,12 +130,17 @@ class ParaphraseScorer:
         )
 
         score = score_match.group(1).strip()
+
         # Extract explanation if available
-        explanation = (
-            explanation_match.group(2).strip()
-            if explanation_match
-            else "No explanation provided"
-        )
+        explanation = ""
+        if explanation_match:
+            explanation += explanation_match.group(1).strip() + "\n\n"
+
+        if rationale_match:
+            explanation += rationale_match.group(1).strip()
+
+        if not explanation:
+            explanation = "No explanation provided"
 
         return explanation, int(score)
 
