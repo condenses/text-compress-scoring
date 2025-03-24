@@ -74,6 +74,7 @@ Perspective Match? [Yes/No] (if informative)
 ---
 #### Paraphrased Text
 {PARAPHRASE}
+"""
 
 class ParaphraseScorer:
     def __init__(self, openai_client: OpenAI):
