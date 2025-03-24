@@ -9,43 +9,72 @@ import torch
 from .utils import retry
 
 PARAPHRASE_SCORE_PROMPT = """
-You are an impartial evaluator tasked with analyzing a paraphrase based on specific criteria. You will be provided with an original text and its paraphrase. Your goal is to evaluate the paraphrase and assign a score from 1 (worst) to 10 (best) based on the following criteria:
-
-1. Meaning Retention (40% weight): Does the paraphrase preserve the core meaning and intent of the original?
-2. Key Details (30% weight): Are all critical facts, entities, and nuances retained?
-3. Wording & Structure (20% weight): Does it use distinct vocabulary/syntax while avoiding plagiarism?
-4. Grammar & Fluency (10% weight): Is the paraphrase grammatically correct and natural-sounding?
-
-Here is the original text:
-<original_text>
+#### **Role:**  
+You are an expert evaluator trained to detect subtle intention mismatches in paraphrased text, especially when directives (commands) are incorrectly transformed into executed outputs.  
+---
+### **Core Principles**  
+1. **Directive Preservation Rule:**  
+   - If the original text is an **instruction** (e.g., "Organize these findings into categories..."), the paraphrase must **restate the instruction**, NOT show the executed result.  
+   - *Automatic penalty*: Score ≤ 3 if the paraphrase executes the command instead of restating it.  
+2. **Intention Hierarchy:**  
+   - **Primary Focus:** Compare *what the texts are trying to achieve* (goal/purpose), not just content.  
+   - **Type Alignment:** Original and paraphrase must share the same *text type* (directive, informative, persuasive, etc.).  
+---
+### **Evaluation Steps**  
+#### **1. Intention Analysis (Mandatory First Step)**  
+```plaintext
+a. Original Text Type: [Directive/Informative/Persuasive/Query]  
+b. Paraphrase Text Type: [Directive/Informative/Persuasive/Query]  
+c. Type Match? [Yes/No]  
+d. For Directives:  
+   - Preserved Action? (e.g., "organize" → "categorize") [Yes/No]  
+   - Preserved Target? (e.g., "findings" → "results") [Yes/No]  
+   - Preserved Output Format? (e.g., "four categories") [Yes/No]  
+e. For Informative:  
+   - Same perspective (1st/3rd person)? [Yes/No]  
+   - Same information purpose (summary/analysis)? [Yes/No]  
+```  
+- **If types mismatch (e.g., directive → informative):** Score 1-3 and halt.  
+#### **2. Conditional Scoring**  
+Only proceed if intentions align (same type + same goal).  
+**Criteria (Weighted):**  
+1. **Meaning & Instruction Adherence (40%)**  
+   - Does the paraphrase fully retain the original’s core meaning?  
+   - For directives: Does it restate *all* instructions exactly?  
+2. **Key Details (30%)**  
+   - Are all critical facts, entities, and nuances preserved?  
+3. **Wording & Structure (20%)**  
+   - Significant rephrasing without plagiarism.  
+4. **Grammar & Fluency (10%)**  
+   - Natural, error-free language.  
+---
+### **Scoring Guidelines**  
+- **1-3:** Fundamental intention mismatch (e.g., command → output).  
+- **4-6:** Partial alignment (minor goal drift, omissions).  
+- **7-9:** Near-perfect alignment (minor phrasing issues).  
+- **10:** Flawless (identical goals, perfect execution).  
+---
+### **Output Format**  
+<intention_analysis>  
+Original Type: [Type]  
+Paraphrase Type: [Type]  
+Type Match: [Yes/No]  
+Core Action Preserved? [Yes/No] (if directive)  
+Perspective Match? [Yes/No] (if informative)  
+</intention_analysis>  
+<score_rationale>  
+[Explicitly note if paraphrase executed instead of restated commands]  
+[Detail any intention discrepancies]  
+</score_rationale>  
+<score>[1-10]</score>
+----
+### Execute This Pair
+#### Original Text
 {ORIGINAL_TEXT}
-</original_text>
-
-Here is the paraphrase:
-<paraphrase>
+---
+#### Paraphrased Text
 {PARAPHRASE}
-</paraphrase>
-
-Carefully analyze the paraphrase in relation to the original text, considering each of the four criteria. Pay special attention to whether the core meaning is preserved, key details are retained, wording is sufficiently different, and the paraphrase is grammatically correct and fluent.
-
-In your analysis, use the following scoring guidelines:
-- 1-3: Major meaning distortion, missing key details, or nonsensical.
-- 4-6: Partial meaning preserved but with omissions/errors.
-- 7-9: Minor issues (e.g., awkward phrasing, slight inaccuracies).
-- 10: Flawless: Equivalent meaning, no redundancy, and natural language.
-
-First, provide a concise explanation of your evaluation, highlighting strengths and weaknesses according to each criterion. Then, based on your analysis, assign an overall score from 1 to 10.
-
-Present your response in the following format:
-<explaination>
-[Your concise analysis here, addressing each criterion]
-</explainataion>
-
-<score>
-[Your numerical score from 1 to 10]
-</score>
-
-Ensure that your explanation is thorough yet concise, and that your score accurately reflects your analysis based on the given criteria and scoring guidelines."""
+"""
 
 
 class ParaphraseScorer:
@@ -79,7 +108,13 @@ class ParaphraseScorer:
         # Fix regex to handle both spellings of explanation
         score_match = re.search(r"<score>\s*(\d+)\s*</score>", completion, re.DOTALL)
         explanation_match = re.search(
-            r"<(explaination|explanation)>(.*?)</(explaination|explanation)>",
+            r"<intention_analysis>(.*?)</intention_analysis>",
+            completion,
+            re.DOTALL,
+        )
+
+        rationale_match = re.search(
+            r"<score_rationale>(.*?)</score_rationale>",
             completion,
             re.DOTALL,
         )
@@ -95,12 +130,17 @@ class ParaphraseScorer:
         )
 
         score = score_match.group(1).strip()
+
         # Extract explanation if available
-        explanation = (
-            explanation_match.group(2).strip()
-            if explanation_match
-            else "No explanation provided"
-        )
+        explanation = ""
+        if explanation_match:
+            explanation += explanation_match.group(1).strip() + "\n\n"
+
+        if rationale_match:
+            explanation += rationale_match.group(1).strip()
+
+        if not explanation:
+            explanation = "No explanation provided"
 
         return explanation, int(score)
 
