@@ -129,6 +129,13 @@ Perspective Match? [Yes/No] (if informative)
 
 <score>[1-10]</score>
 ```
+----
+### Execute This Pair
+#### Original Text
+{ORIGINAL_TEXT}
+---
+#### Paraphrased Text
+{PARAPHRASE}
 """
 
 
