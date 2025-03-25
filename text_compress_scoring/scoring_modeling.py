@@ -9,175 +9,126 @@ import torch
 from .utils import retry
 
 PARAPHRASE_SCORE_PROMPT = """
-#### **Role:**  
+### **Role:**
 
-You are an expert evaluator trained to detect subtle intention mismatches in paraphrased text, especially when directives (commands) are incorrectly transformed into executed outputs.  
-
----
-
-### **Core Principles**  
-
-1. **Directive Preservation Rule:**  
-
-   - If the original text is an **instruction** (e.g., "Organize these findings into categories..."), the paraphrase must **restate the instruction**, NOT show the executed result.  
-
-   - *Automatic penalty*: Score ≤ 3 if the paraphrase executes the command instead of restating it.  
-
-2. **Intention Hierarchy:**  
-
-   - **Primary Focus:** Compare *what the texts are trying to achieve* (goal/purpose), not just content.  
-
-   - **Type Alignment:** Original and paraphrase must share the same *text type* (directive, informative, persuasive, etc.).
-
-3. **True Paraphrase Requirement:**
-
-   - *Automatic penalty*: Score ≤ 2 if the paraphrase merely copies the original text verbatim or with minimal changes.
-
-   - A genuine paraphrase must substantially rework wording while preserving meaning.
-
-   - At least 50% of the text should use different words, phrases, or sentence structures.
-
-   - **Completeness:** The paraphrase must represent a complete rephrasing of the *entire* original text's intention.  Unjustified truncation or omission of core instructional elements or key concepts is penalized, even if the remaining portion is well-paraphrased. (See "Meaning & Instruction Adherence" below).
+You are an expert evaluator trained to detect subtle intention mismatches and incomplete paraphrasing, especially when directives (commands) are incorrectly transformed into executed outputs or when portions of the original text are omitted.
 
 ---
 
-### **Evaluation Steps**  
+### **Core Principles**
+
+1.  **Directive Preservation Rule (Instructions MUST be Restated):**
+
+    *   If the original text is an **instruction** (e.g., "Summarize the following paragraph..."), the paraphrase *must* **restate the instruction**, NOT show the *executed result* of that instruction.
+    *   *Automatic penalty*: Score ≤ 3 if the paraphrase *executes* the command instead of restating it.
+
+2.  **Intention Hierarchy:**
+
+    *   **Primary Focus:** Compare *what the texts are trying to achieve* (goal/purpose), not just content. The overall *intent* must be identical.
+    *   **Type Alignment:** Original and paraphrase must share the same *text type* (directive, informative, persuasive, etc.). A directive must remain a directive; an informative text must remain informative.
+
+3.  **True Paraphrase Requirement (All Text Segments):**
+
+    *   *Automatic penalty*: Score ≤ 2 if the paraphrase merely copies the original text verbatim or with minimal changes (less than 70% substantially reworded).
+    *   A genuine paraphrase must substantially rework wording *while preserving meaning*. At least 70% of the text should use different words, phrases, or sentence structures.
+    *   **All Text Segments Rule:** If the original text comprises multiple segments (e.g., instructions + an excerpt, question + context), *each segment* must be independently and completely paraphrased. Failure to paraphrase *any* segment constitutes a failure of the true paraphrase test. No portion of the original should be directly copied (unless quotation is explicitly permitted and properly attributed, and even then, a paraphrase is preferred).
+
+    * **Completeness:** The paraphrase must represent a complete rephrasing of the *entire* original text's intention and *all* its content. Unjustified truncation, omission, or summarization of core instructional elements or key concepts/text segments is heavily penalized, even if the remaining portion is well-paraphrased. (See "Meaning & Instruction Adherence" below).
+
+---
+
+### **Evaluation Steps**
 
 #### **1. Paraphrase Assessment (Mandatory First Step)**
 
 ```plaintext
-
-a. Is this a true paraphrase? [Yes/No]
-
-b. Estimated percentage of text substantially reworded: [%]
-
+a. Is this a true paraphrase (considering all text segments)? [Yes/No]
+b. Estimated percentage of text substantially reworded (across all segments): [%]
 c. Passes minimum paraphrase threshold (>70%)? [Yes/No]
 
 If fails true paraphrase test: Score 1-2 and halt.
+```
 
-2. Intention Analysis (Second Mandatory Step)
+#### **2. Intention Analysis (Second Mandatory Step)**
 
-Plaintext
+```plaintext
+a. Original Text Type: [Directive/Informative/Persuasive/Query]
+b. Paraphrase Text Type: [Directive/Informative/Persuasive/Query]
+c. Type Match? [Yes/No]
+d. For Directives:
+    - Preserved Action? (e.g., "organize" → "categorize") [Yes/No]
+    - Preserved Target? (e.g., "findings" → "results") [Yes/No]
+    - Preserved Output Format? (e.g., "four categories") [Yes/No]
+e. For Informative:
+    - Same perspective (1st/3rd person)? [Yes/No]
+    - Same information purpose (summary/analysis)? [Yes/No]
 
+If types mismatch (e.g., directive → informative): Score 1-2 and halt.
+```
 
+#### **3. Conditional Scoring**
 
-a. Original Text Type: [Directive/Informative/Persuasive/Query]  
+Only proceed if intentions align (same type + same goal) *and* the paraphrase assessment passes.
 
-b. Paraphrase Text Type: [Directive/Informative/Persuasive/Query]  
+**Criteria (Weighted):**
 
-c. Type Match? [Yes/No]  
+1.  **Meaning & Instruction Adherence (40%)**
 
-d. For Directives:  
+    *   Does the paraphrase fully retain the original’s core meaning *across all text segments*?
+    *   For directives: Does it restate *all* instructions exactly?
+    *   **Completeness Check:** Does the paraphrase address the *full scope* of the original's intent *and* include a full paraphrase of *all text segments*? Are there any significant omissions, truncations, or unjustified summaries that alter the core meaning, instructions, or content, even if the rephrased parts are accurate? If significant portions are missing without justification, heavily penalize here.
 
-   - Preserved Action? (e.g., "organize" → "categorize") [Yes/No]  
+2.  **Key Details (30%)**
 
-   - Preserved Target? (e.g., "findings" → "results") [Yes/No]  
+    *   Are all critical facts, entities, and nuances preserved *across all text segments*?
 
-   - Preserved Output Format? (e.g., "four categories") [Yes/No]  
+3.  **Wording & Structure (20%)**
 
-e. For Informative:  
+    *   Significant rephrasing without plagiarism *across all text segments*.
 
-   - Same perspective (1st/3rd person)? [Yes/No]  
+4.  **Grammar & Fluency (10%)**
 
-   - Same information purpose (summary/analysis)? [Yes/No]  
-
-```  
-
-- **If types mismatch (e.g., directive → informative):** Score 1-2 and halt.  
-
-#### **3. Conditional Scoring**  
-
-Only proceed if intentions align (same type + same goal).  
-
-**Criteria (Weighted):**  
-
-1. **Meaning & Instruction Adherence (40%)**  
-
-   - Does the paraphrase fully retain the original’s core meaning?  
-
-   - For directives: Does it restate *all* instructions exactly? 
-
-   - **Completeness Check:** Does the paraphrase address the *full scope* of the original's intent?  Are there any significant omissions or truncations that alter the core meaning or instructions, even if the rephrased parts are accurate?  If significant portions are missing without justification (e.g., summarizing is explicitly requested), heavily penalize here.
-
-2. **Key Details (30%)**  
-
-   - Are all critical facts, entities, and nuances preserved?  
-
-3. **Wording & Structure (20%)**  
-
-   - Significant rephrasing without plagiarism.  
-
-4. **Grammar & Fluency (10%)**  
-
-   - Natural, error-free language.  
+    *   Natural, error-free language.
 
 ---
 
-### **Scoring Guidelines**  
+### **Scoring Guidelines**
 
-- **1-3:** Fundamental intention mismatch (e.g., command → output).  
-
-- **4-6:** Partial alignment (minor goal drift, omissions).  
-
-- **7-9:** Near-perfect alignment (minor phrasing issues).  
-
-- **10:** Flawless (identical goals, perfect execution).  
+*   **1-2:** Fundamental intention mismatch (e.g., command → output) OR failure of the true paraphrase test (including failure to paraphrase all segments).
+*   **3:** The paraphrase executes the command instead of restating.
+*   **4-6:** Partial alignment (minor goal drift, omissions, or incomplete paraphrasing of some segments).
+*   **7-9:** Near-perfect alignment (minor phrasing issues).
+*   **10:** Flawless (identical goals, perfect execution, all segments fully paraphrased).
 
 ---
 
-### **Output Format**  
+### **Output Format**
 
+```
 <paraphrase_assessment>
-
 True Paraphrase: [Yes/No]
-
-Estimated Rewording: [%]
-
+Paraphrased text is truncated or incompleted: [Yes/No]
 Passes Threshold: [Yes/No]
-
 </paraphrase_assessment>
 
 <intention_analysis>
-
 Original Type: [Type]
-
 Paraphrase Type: [Type]
-
 Type Match: [Yes/No]
-
 Core Action Preserved? [Yes/No] (if directive)
-
 Perspective Match? [Yes/No] (if informative)
-
 </intention_analysis>
 
 <score_rationale>
-
-[Note if text was copied rather than paraphrased]
-
-[Explicitly note if paraphrase executed instead of restated commands]
-
-[Detail any intention discrepancies]
-
-[Specifically address any unjustified truncations or omissions, referencing the "Completeness Check"]
-
+[Note if text was copied rather than paraphrased, specifically mentioning which segment(s) were copied.]
+[Explicitly note if paraphrase executed instead of restated commands.]
+[Detail any intention discrepancies.]
+[Specifically address any unjustified truncations, omissions, or summarizations, referencing the "Completeness Check" and the "All Text Segments Rule."]
+[Identify which segments, if any, were not fully paraphrased.]
 </score_rationale>
 
 <score>[1-10]</score>
-
-----
-
-### Execute This Pair
-
-#### Original Text
-
-{ORIGINAL_TEXT}
-
----
-
-#### Paraphrased Text
-
-{PARAPHRASE}
+```
 """
 
 
