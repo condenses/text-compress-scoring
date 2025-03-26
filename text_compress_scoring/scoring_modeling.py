@@ -222,7 +222,7 @@ class ParaphraseScorer:
             scores.append(score)
 
         # Normalize scores from 1-10 to 0-1
-        normalized_scores = [score / 10.0 for score in scores]
+        normalized_scores = [min(1, score / 10.0) for score in scores]
         return normalized_scores
 
 
