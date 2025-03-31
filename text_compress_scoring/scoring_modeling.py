@@ -154,6 +154,9 @@ class ParaphraseScorer:
         Compute the paraphrase score between original text and its paraphrase.
         Returns a tuple of (feedback, score) where score is between 1 and 10.
         """
+        if "<score>" in paraphrase.lower() or "</score>" in paraphrase.lower():
+           return "tricky", 0
+        
         prompt = PARAPHRASE_SCORE_PROMPT.format(
             ORIGINAL_TEXT=original_text,
             PARAPHRASE=paraphrase,
